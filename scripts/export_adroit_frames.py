@@ -21,7 +21,7 @@ def main():
     parser.add_argument(
         "--max_episodes",
         type=int,
-        default=5,
+        default=10,
         help="how many episodes to export",
     )
     args = parser.parse_args()

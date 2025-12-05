@@ -51,6 +51,13 @@ def run_on_image(
         device=device,
     )
 
+    # 若未检测到任何框，直接返回空结果，避免后续 SAM2 断言失败
+    if boxes.numel() == 0:
+        return {
+            "image_path": img_path,
+            "annotations": [],
+        }
+
     h, w, _ = image_source.shape
     boxes = boxes * torch.Tensor([w, h, w, h])
     input_boxes = box_convert(boxes=boxes, in_fmt="cxcywh", out_fmt="xyxy").numpy()
