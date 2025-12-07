@@ -78,7 +78,9 @@ class AdroitRunner(BaseRunner):
         # Option 1: Use API server (recommended for performance)
         # Set gs2_api_url to use API server, e.g., "http://127.0.0.1:5000"
         # If None, falls back to subprocess mode
-        self.gs2_api_url = os.getenv("GS2_API_URL", None)  # e.g., "http://127.0.0.1:5000"
+        self.gs2_api_url = os.getenv("GS2_API_URL", "http://127.0.0.1:5000")  # e.g., "http://127.0.0.1:5000"
+        # Control verbose output (set GS2_VERBOSE=0 to disable)
+        self.gs2_verbose = os.getenv("GS2_VERBOSE", "0").lower() in ("1", "true", "yes")
         
         # Option 2: Subprocess mode (original, slower)
         self.gs2_conda_env = "aedp3_vis"
@@ -223,12 +225,14 @@ class AdroitRunner(BaseRunner):
             }
             
             # Make API call
-            cprint(f"[GM2-API] Calling Grounded-SAM-2 API...", "cyan")
+            if self.gs2_verbose:
+                cprint(f"[GM2-API] Calling Grounded-SAM-2 API...", "cyan")
             response = requests.post(api_url, json=payload, timeout=60)
             
             if response.status_code != 200:
                 error_msg = response.json().get("error", f"HTTP {response.status_code}")
-                cprint(f"[error] Grounded-SAM-2 API error: {error_msg}", "red")
+                if self.gs2_verbose:
+                    cprint(f"[error] Grounded-SAM-2 API error: {error_msg}", "red")
                 return np.zeros((4, 1600), dtype=np.float32)
             
             # Parse response
@@ -293,7 +297,8 @@ class AdroitRunner(BaseRunner):
             
             # Run Grounded-SAM-2 inference with real-time output
             # Set cwd to gs2_root so relative paths in script work correctly
-            cprint(f"[GM2] Running Grounded-SAM-2 inference (subprocess mode)...", "cyan")
+            if self.gs2_verbose:
+                cprint(f"[GM2] Running Grounded-SAM-2 inference (subprocess mode)...", "cyan")
             
             # Use Popen for real-time output
             process = subprocess.Popen(
@@ -348,7 +353,8 @@ class AdroitRunner(BaseRunner):
                     
                     line = line.rstrip()
                     if should_print_line(line):  # Only print non-warning lines
-                        cprint(f"[GM2] {line}", "cyan")
+                        if self.gs2_verbose:
+                            cprint(f"[GM2] {line}", "cyan")
                         stdout_lines.append(line)
                 
                 # Wait for process to finish
