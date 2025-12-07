@@ -141,8 +141,7 @@ class PointCloudGenerator(object):
             self.cam_mats.append(cam_mat)
 
     def generateCroppedPointCloud(self, save_img_dir=None, device_id=0):
-        o3d_clouds = []
-        cam_poses = []
+        pc_with_uv_list = []  # Store point clouds with uv coordinates
         depths = []
         for cam_i in range(len(self.cam_names)):
             # Render and optionally save image from camera corresponding to cam_i
@@ -181,19 +180,35 @@ class PointCloudGenerator(object):
             c2w_r = np.matmul(c2b_r, b2w_r)
             c2w = posRotMat2Mat(cam_pos, c2w_r)
             transformed_cloud = o3d_cloud.transform(c2w)
-            o3d_clouds.append(transformed_cloud)
+            
+            # Generate UV coordinates for this camera's point cloud
+            # Open3D creates points in row-major order (same as depth image)
+            H, W = depth.shape
+            u, v = np.meshgrid(np.arange(W), np.arange(H))  # (H, W)
+            u_flat = u.reshape(-1)  # (H*W,)
+            v_flat = v.reshape(-1)  # (H*W,)
+            
+            # Normalize UV to [0, 1]
+            u_norm = (u_flat / W).astype(np.float32)
+            v_norm = (v_flat / H).astype(np.float32)
+            
+            # Get points and colors
+            pts_world = np.asarray(transformed_cloud.points)  # (N, 3)
+            # Use color_img directly (already flipped and in correct order)
+            colors_flat = color_img.reshape(-1, 3)  # (H*W, 3), uint8
+            
+            # Concatenate: xyz + rgb + uv = (N, 8)
+            pc_cam = np.concatenate([
+                pts_world,           # (N, 3)
+                colors_flat,         # (N, 3)
+                u_norm[:, None],     # (N, 1)
+                v_norm[:, None]      # (N, 1)
+            ], axis=1)
+            pc_with_uv_list.append(pc_cam)
 
-        combined_cloud = o3d.geometry.PointCloud()
-        for cloud in o3d_clouds:
-            combined_cloud += cloud
-        # get numpy array of point cloud, (position, color)
-        combined_cloud_points = np.asarray(combined_cloud.points)
-        # color is automatically normalized to [0,1] by open3d
+        # Combine all cameras' point clouds
+        combined_cloud = np.concatenate(pc_with_uv_list, axis=0)  # (N_total, 8)
         
-
-        # combined_cloud_colors = np.asarray(combined_cloud.colors)  # Get the colors, ranging [0,1].
-        combined_cloud_colors = color_img.reshape(-1, 3) # range [0, 255]
-        combined_cloud = np.concatenate((combined_cloud_points, combined_cloud_colors), axis=1)
         depths = np.array(depths).squeeze()
         return combined_cloud, depths
 

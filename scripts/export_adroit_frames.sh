@@ -1,0 +1,1 @@
+python scripts/export_adroit_frames.py   --zarr 3D-Diffusion-Policy/data/adroit_door_expert.zarr   --out_dir 3D-Diffusion-Policy/export/adroit_door_frames

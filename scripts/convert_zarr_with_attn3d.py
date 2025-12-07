@@ -4,6 +4,7 @@ import json
 import numpy as np
 import zarr
 import numcodecs
+import pycocotools.mask as mask_util
 from diffusion_policy_3d.common.replay_buffer import ReplayBuffer, get_optimal_chunks
 
 def load_json(json_path):
@@ -12,27 +13,72 @@ def load_json(json_path):
 
 def build_attn_from_mask(point_cloud, mask_json, img_res=(84, 84), n_points=1600, n_channels=4):
     """
-    简易版本：把落在 mask 内的点权重设为 1，否则 0。返回 shape (C, N)。
-    point_cloud: (N_pc, 6) xyzrgb
+    精确版本：使用 UV 坐标查询 mask，精确标注哪些点在 mask 内。
+    point_cloud: (N_pc, 8) xyzrgbuv，其中 uv 是归一化的 [0, 1]
     mask_json: json dict from grounded_sam2
     img_res: (H, W) of original image
     """
+    H, W = img_res
+    
+    # Sample or pad point cloud
     if point_cloud.shape[0] >= n_points:
         idx = np.random.choice(point_cloud.shape[0], n_points, replace=False)
         pc = point_cloud[idx]
     else:
         pc = np.zeros((n_points, point_cloud.shape[1]), dtype=point_cloud.dtype)
         pc[: point_cloud.shape[0]] = point_cloud
+    
     xyz = pc[:, :3]
-    # 简化：用归一化 x 作为几何通道；mask 权重简单设为 1（如果有任何 mask），未实现精确投影
+    
+    # Extract UV coordinates (normalized [0, 1])
+    if pc.shape[1] >= 8:
+        u_norm = pc[:, 6]  # normalized u
+        v_norm = pc[:, 7]  # normalized v
+    else:
+        # Fallback: if no UV, use simple method
+        u_norm = np.zeros(pc.shape[0], dtype=np.float32)
+        v_norm = np.zeros(pc.shape[0], dtype=np.float32)
+    
+    # Convert normalized UV to pixel coordinates
+    u_pix = np.clip((u_norm * W).round().astype(int), 0, W - 1)
+    v_pix = np.clip((v_norm * H).round().astype(int), 0, H - 1)
+    
+    # Initialize attention field
     attn = np.zeros((n_channels, n_points), dtype=np.float32)
-    # 通道3：归一化 x
-    attn[3] = (xyz[:, 0] - xyz[:, 0].mean()) / (xyz[:, 0].std() + 1e-6)
-    # 如果有 mask，就把通道0/1/2 设为 1
+    
+    # Check if points are inside any mask
+    mask_hit = np.zeros(n_points, dtype=bool)
+    
     if mask_json and "annotations" in mask_json and len(mask_json["annotations"]) > 0:
-        attn[0] = 1.0
-        attn[1] = 1.0
-        attn[2] = 1.0
+        # Decode all masks and check which points are inside
+        for ann in mask_json["annotations"]:
+            rle = ann["segmentation"]
+            if isinstance(rle, dict) and "counts" in rle:
+                try:
+                    # Decode RLE mask
+                    mask = mask_util.decode(rle).astype(bool)  # (H, W)
+                    # Check which points are inside this mask
+                    mask_hit |= mask[v_pix, u_pix]
+                except Exception as e:
+                    print(f"[warn] Failed to decode mask: {e}")
+                    continue
+    
+    # Channel 0: Binary mask hit (1 if inside any mask, 0 otherwise)
+    attn[0] = mask_hit.astype(np.float32)
+    
+    # Channel 1: Distance-based attention (closer to center = higher weight)
+    # Use normalized x coordinate as proxy for distance
+    x_center = xyz[:, 0].mean()
+    x_dist = np.abs(xyz[:, 0] - x_center)
+    x_dist_norm = x_dist / (x_dist.max() + 1e-6)
+    attn[1] = (1.0 - x_dist_norm) * mask_hit.astype(np.float32)  # Only for points in mask
+    
+    # Channel 2: Inverse distance (for obstacle/background attention)
+    attn[2] = (1.0 - mask_hit.astype(np.float32))  # Points NOT in mask
+    
+    # Channel 3: Normalized spatial coordinate (x)
+    attn[3] = (xyz[:, 0] - xyz[:, 0].mean()) / (xyz[:, 0].std() + 1e-6)
+    
     return attn
 
 def main():
@@ -111,8 +157,14 @@ def main():
     for ep_idx in range(n_eps):
         ep = rb.get_episode(ep_idx)
         T = ep["state"].shape[0]
-        pc = ep["point_cloud"]  # (T, Npc, 6)
+        pc = ep["point_cloud"]  # (T, Npc, 6) or (T, Npc, 8) if has uv
         imgs = ep["img"]
+        
+        # Check if point cloud has UV coordinates
+        has_uv = pc.shape[-1] >= 8
+        if not has_uv:
+            print(f"[warn] Episode {ep_idx}: point_cloud shape is {pc.shape}, expected at least 8 channels (xyzrgbuv). "
+                  f"Falling back to simple attention generation.")
         # 拷贝原有字段
         data_g["state"][step_cursor:step_cursor+T] = ep["state"]
         data_g["action"][step_cursor:step_cursor+T] = ep["action"]
@@ -137,4 +189,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-PY

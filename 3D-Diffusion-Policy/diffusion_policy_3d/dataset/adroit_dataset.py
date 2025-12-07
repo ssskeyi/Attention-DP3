@@ -8,7 +8,6 @@ from diffusion_policy_3d.common.sampler import (
     SequenceSampler, get_val_mask, downsample_mask)
 from diffusion_policy_3d.model.common.normalizer import LinearNormalizer, SingleFieldLinearNormalizer
 from diffusion_policy_3d.dataset.base_dataset import BaseDataset
-from diffusion_policy_3d.model.vision.attention_field_builder import SimpleAttentionFieldBuilder
 
 class AdroitDataset(BaseDataset):
     def __init__(self,
@@ -27,8 +26,28 @@ class AdroitDataset(BaseDataset):
         super().__init__()
         self.task_name = task_name
         self.use_attn_3d = use_attn_3d
+        self.attn_3d_n_points = attn_3d_n_points
+        self.attn_3d_n_channels = attn_3d_n_channels
+        
+        # Load zarr, including attn_3d if available
+        keys_to_load = ['state', 'action', 'point_cloud', 'img']
+        self.has_attn_3d_in_zarr = False
+        if use_attn_3d:
+            # Check if attn_3d exists in zarr - if not, raise error
+            try:
+                test_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=['attn_3d'])
+                self.has_attn_3d_in_zarr = True
+                keys_to_load.append('attn_3d')
+            except (KeyError, ValueError):
+                # attn_3d not found - raise error instead of generating on-the-fly
+                raise ValueError(
+                    f"use_attn_3d=True but attn_3d not found in zarr: {zarr_path}\n"
+                    f"Please pre-compute attn_3d using convert_zarr_with_attn3d.py before training."
+                )
+        
+        # Load replay buffer
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['state', 'action', 'point_cloud', 'img'])
+            zarr_path, keys=keys_to_load)
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
@@ -49,13 +68,6 @@ class AdroitDataset(BaseDataset):
         self.horizon = horizon
         self.pad_before = pad_before
         self.pad_after = pad_after
-        
-        # Initialize attention field builder if needed
-        if self.use_attn_3d:
-            self.attn_builder = SimpleAttentionFieldBuilder(
-                n_points=attn_3d_n_points,
-                n_channels=attn_3d_n_channels,
-            )
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
@@ -70,30 +82,27 @@ class AdroitDataset(BaseDataset):
         return val_set
 
     def get_normalizer(self, mode='limits', **kwargs):
+        # Extract point cloud - if it has 8 channels (with UV), use only first 6 channels (xyzrgb)
+        # This ensures normalization is consistent with training data format
+        point_cloud = self.replay_buffer['point_cloud']
+        if point_cloud.shape[-1] >= 8:
+            # Create a view or copy with only first 6 channels for normalization
+            # We need to handle this carefully to avoid modifying the original data
+            point_cloud_for_norm = point_cloud[..., :6]
+        else:
+            point_cloud_for_norm = point_cloud
+        
         data = {
             'action': self.replay_buffer['action'],
             'agent_pos': self.replay_buffer['state'][...,:],
-            'point_cloud': self.replay_buffer['point_cloud'],
+            'point_cloud': point_cloud_for_norm,
         }
         if self.use_attn_3d:
-            # Generate attention fields for normalization
-            # Sample a subset of episodes for efficiency
-            n_samples = min(100, self.replay_buffer.n_episodes)
-            attn_3d_samples = []
-            for ep_idx in range(0, self.replay_buffer.n_episodes, max(1, self.replay_buffer.n_episodes // n_samples)):
-                ep_data = self.replay_buffer.get_episode(ep_idx)
-                pc = ep_data['point_cloud']
-                state = ep_data['state']
-                # Generate attention field for first timestep as example
-                if len(pc) > 0:
-                    attn_field = self.attn_builder.build_attention_field(
-                        pc[0], state[0] if len(state) > 0 else None
-                    )
-                    attn_3d_samples.append(attn_field)
-            if len(attn_3d_samples) > 0:
-                # Stack and reshape: (N_samples, C, N) -> (N_samples * N, C) for normalization
-                attn_3d_array = np.stack(attn_3d_samples, axis=0)
-                data['attn_3d'] = attn_3d_array.reshape(-1, attn_3d_array.shape[-2], attn_3d_array.shape[-1])
+            # Use pre-computed attn_3d from zarr for normalization
+            # If we reach here, has_attn_3d_in_zarr must be True (checked in __init__)
+            if not self.has_attn_3d_in_zarr:
+                raise ValueError("use_attn_3d=True but attn_3d not found in zarr. This should have been caught in __init__.")
+            data['attn_3d'] = self.replay_buffer['attn_3d']
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         return normalizer
@@ -103,7 +112,13 @@ class AdroitDataset(BaseDataset):
 
     def _sample_to_data(self, sample):
         agent_pos = sample['state'][:,].astype(np.float32) # (agent_posx2, block_posex3)
-        point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6)
+        point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 6) or (T, 1024, 8) if has uv
+        
+        # If point cloud has UV coordinates (8 channels), extract only xyzrgb (6 channels) for training
+        # This is necessary because we modified point cloud generation to include UV, but training still uses 6 channels
+        # When use_attn_3d=False, this ensures compatibility with both old (6-channel) and new (8-channel) data
+        if point_cloud.shape[-1] >= 8:
+            point_cloud = point_cloud[:, :, :6]  # Keep only xyzrgb
 
         data = {
             'obs': {
@@ -113,17 +128,16 @@ class AdroitDataset(BaseDataset):
             'action': sample['action'].astype(np.float32) # T, D_action
         }
         
-        # Generate 3D attention field if enabled
+        # Load pre-computed 3D attention field from zarr - only if use_attn_3d is True
+        # When use_attn_3d=False, this block is skipped, making behavior identical to original code
         if self.use_attn_3d:
-            T = point_cloud.shape[0]
-            attn_3d_list = []
-            for t in range(T):
-                attn_field = self.attn_builder.build_attention_field(
-                    point_cloud[t], agent_pos[t] if len(agent_pos) > t else None
-                )
-                attn_3d_list.append(attn_field)
-            attn_3d = np.stack(attn_3d_list, axis=0)  # (T, C, N)
-            data['obs']['attn_3d'] = attn_3d.astype(np.float32)
+            if not self.has_attn_3d_in_zarr:
+                raise ValueError("use_attn_3d=True but attn_3d not found in zarr. This should have been caught in __init__.")
+            if 'attn_3d' not in sample:
+                raise ValueError("use_attn_3d=True but attn_3d not found in sample. Check SequenceSampler keys.")
+            # Use pre-computed attn_3d from zarr
+            attn_3d = sample['attn_3d'].astype(np.float32)  # (T, C, N)
+            data['obs']['attn_3d'] = attn_3d
         
         return data
     

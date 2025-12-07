@@ -1,4 +1,5 @@
 cd /mnt/disk2/ycb/AEDP3/Grounded-SAM-2
+# conda activate aedp3_vis
 
 python batch_grounded_sam2.py \
   --frames_root ../3D-Diffusion-Policy/export/adroit_door_frames \
