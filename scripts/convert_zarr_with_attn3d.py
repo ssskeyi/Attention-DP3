@@ -11,7 +11,7 @@ def load_json(json_path):
     with open(json_path, "r") as f:
         return json.load(f)
 
-def build_attn_from_mask(point_cloud, mask_json, img_res=(84, 84), n_points=1600, n_channels=4):
+def build_attn_from_mask(point_cloud, mask_json, img_res=(84, 84), n_points=512, n_channels=4):
     """
     精确版本：使用 UV 坐标查询 mask，精确标注哪些点在 mask 内。
     point_cloud: (N_pc, 8) xyzrgbuv，其中 uv 是归一化的 [0, 1]
@@ -86,7 +86,7 @@ def main():
     ap.add_argument("--input_zarr", required=True, help="data/adroit_door_expert.zarr")
     ap.add_argument("--json_root", required=True, help="export_gs2/adroit_door")
     ap.add_argument("--output_zarr", required=True, help="data/adroit_door_expert_attn3d.zarr")
-    ap.add_argument("--n_points", type=int, default=1600)
+    ap.add_argument("--n_points", type=int, default=512)
     ap.add_argument("--n_channels", type=int, default=4)
     ap.add_argument("--max_episodes", type=int, default=None, help="limit episodes for quick test")
     args = ap.parse_args()

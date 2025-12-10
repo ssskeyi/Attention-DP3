@@ -20,7 +20,7 @@ class AdroitDataset(BaseDataset):
             max_train_episodes=None,
             task_name=None,
             use_attn_3d=True,
-            attn_3d_n_points=1600,
+            attn_3d_n_points=512,
             attn_3d_n_channels=4,
             ):
         super().__init__()
