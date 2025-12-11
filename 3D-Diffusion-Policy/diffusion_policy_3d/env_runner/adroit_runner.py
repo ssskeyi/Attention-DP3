@@ -78,9 +78,9 @@ class AdroitRunner(BaseRunner):
         # Option 1: Use API server (recommended for performance)
         # Set gs2_api_url to use API server, e.g., "http://127.0.0.1:5000"
         # If None, falls back to subprocess mode
-        self.gs2_api_url = os.getenv("GS2_API_URL", None)  # e.g., "http://127.0.0.1:5000"
+        self.gs2_api_url = os.getenv("GS2_API_URL", "http://127.0.0.1:5000")  # e.g., "http://127.0.0.1:5000"
         # Control verbose output (set GS2_VERBOSE=0 to disable)
-        self.gs2_verbose = os.getenv("GS2_VERBOSE", "1").lower() in ("1", "true", "yes")
+        self.gs2_verbose = os.getenv("GS2_VERBOSE", "0").lower() in ("1", "true", "yes")
         
         # Option 2: Subprocess mode (original, slower)
         self.gs2_conda_env = "aedp3_vis"
