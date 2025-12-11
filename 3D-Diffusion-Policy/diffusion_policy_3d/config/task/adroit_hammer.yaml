@@ -2,19 +2,18 @@ name: adroit_hammer
 
 task_name: hammer
 
-image_shape: &image_shape [3, 84, 84]
 shape_meta: &shape_meta
-  # acceptable types: rgb, low_dim
+  # acceptable types: rgb, low_dim, point_cloud, spatial
   obs:
-    # image:
-    #     shape: *image_shape
-    #     type: rgb
     point_cloud:
       shape: [512, 3]
       type: point_cloud
     agent_pos:
       shape: [24]
       type: low_dim
+    attn_3d:
+      shape: [4, 512]  # [C, N] where C=4 channels, N=512 points (aligned with point_cloud)
+      type: spatial
   action:
     shape: [26]
 
@@ -31,10 +30,11 @@ env_runner:
 
 dataset:
   _target_: diffusion_policy_3d.dataset.adroit_dataset.AdroitDataset
-  zarr_path: data/adroit_hammer_expert.zarr
+  zarr_path: data/adroit_hammer_expert_attn3d.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
   seed: 42
   val_ratio: 0.02
   max_train_episodes: 90
+  use_attn_3d: true

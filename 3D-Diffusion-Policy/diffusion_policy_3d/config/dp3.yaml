@@ -120,7 +120,7 @@ logging:
   id: null
   mode: online
   name: ${training.seed}
-  project: aedp3
+  project: aedp3_adroit_cmp
   resume: true
   tags:
   - aedp3
