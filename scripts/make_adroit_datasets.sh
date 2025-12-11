@@ -15,6 +15,7 @@ set -euo pipefail
 #   MAX_EP (默认 10)         : 生成演示/处理的 episode 数（帧导出 & attn 也会用）
 #   N_POINTS (默认 512)      : attn_3d 采样点数
 #   TASKS (默认 "door hammer pen")
+#   GS2_CONDA_ENV (可选)     : 指定运行 gs2.sh 时的 conda 环境，如 aedp3_vis
 
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
 GPU="${GPU:-0}"
@@ -63,7 +64,11 @@ gs2_for_task() {
     *)      text_prompt="${task}" ;;
   esac
   log "运行 GS2: ${task} -> ${output_root}"
-  GS2_DIR="${GS2_DIR}" bash "${ROOT}/scripts/gs2.sh" \
+  local runner=()
+  if [[ -n "${GS2_CONDA_ENV:-}" ]]; then
+    runner=(conda run -n "${GS2_CONDA_ENV}")
+  fi
+  GS2_DIR="${GS2_DIR}" "${runner[@]}" bash "${ROOT}/scripts/gs2.sh" \
     "${frames_root}" \
     "${output_root}" \
     "${text_prompt}" \
