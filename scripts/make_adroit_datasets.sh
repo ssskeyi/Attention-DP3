@@ -8,14 +8,14 @@ set -euo pipefail
 #   - Grounded-SAM-2 及其权重、配置（gs2.sh）
 #   - scripts/convert_zarr_with_attn3d.py （生成 attn_3d zarr）
 # 环境变量：
-#   GPU (默认 0)             : 用于生成演示
+#   GPU (默认 0)              : 用于生成演示
 #   DEVICE (默认 cuda)        : gs2 推理设备
 #   ROOT (默认当前仓库根)      : 仓库根目录
 #   GS2_DIR (可选)           : Grounded-SAM-2 目录，默认 $ROOT/Grounded-SAM-2
-#   MAX_EP (默认 10)         : 生成演示/处理的 episode 数（帧导出 & attn 也会用）
-#   N_POINTS (默认 512)      : attn_3d 采样点数
+#   MAX_EP (默认 10)          : 生成演示/处理的 episode 数（帧导出 & attn 也会用）
+#   N_POINTS (默认 512)       : attn_3d 采样点数
 #   TASKS (默认 "door hammer pen")
-#   GS2_CONDA_ENV (可选)     : 指定运行 gs2.sh 时的 conda 环境，如 aedp3_vis
+#   GS2_CONDA_ENV (默认 aedp3_vis): 指定运行 gs2.sh 时的 conda 环境
 
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
 GPU="${GPU:-0}"
@@ -24,6 +24,8 @@ MAX_EP="${MAX_EP:-10}"
 N_POINTS="${N_POINTS:-512}"
 TASKS="${TASKS:-door hammer pen}"
 GS2_DIR="${GS2_DIR:-${ROOT}/Grounded-SAM-2}"
+# 修改处：设置默认 conda 环境为 aedp3_vis
+GS2_CONDA_ENV="${GS2_CONDA_ENV:-aedp3_vis}"
 
 log() { echo -e "[make_adroit] $*"; }
 
@@ -59,12 +61,13 @@ gs2_for_task() {
   local text_prompt
   case "${task}" in
     door)   text_prompt="door handle. door." ;;
-    hammer) text_prompt="hammer. nail. hand holding hammer." ;;
-    pen)    text_prompt="pen. writing pen. hand and pen." ;;
+    hammer) text_prompt="hammer. nail" ;;
+    pen)    text_prompt="blue pen" ;;
     *)      text_prompt="${task}" ;;
   esac
   log "运行 GS2: ${task} -> ${output_root}"
   local runner=()
+  # 因为上面设置了默认值，只要不显式传空值，这里都会进入 conda run 逻辑
   if [[ -n "${GS2_CONDA_ENV:-}" ]]; then
     runner=(conda run -n "${GS2_CONDA_ENV}")
   fi
@@ -94,6 +97,7 @@ main() {
   log "TASKS=${TASKS}"
   log "GPU=${GPU}, DEVICE=${DEVICE}, MAX_EP=${MAX_EP}, N_POINTS=${N_POINTS}"
   log "GS2_DIR=${GS2_DIR}"
+  log "GS2_CONDA_ENV=${GS2_CONDA_ENV}"
   for task in ${TASKS}; do
     gen_demo "${task}"
     export_frames "${task}"
@@ -104,4 +108,3 @@ main() {
 }
 
 main "$@"
-

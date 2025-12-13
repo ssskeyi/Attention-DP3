@@ -59,13 +59,14 @@ ENV_POINT_CLOUD_CONFIG = {
 def point_cloud_sampling(point_cloud:np.ndarray, num_points:int, method:str='uniform'):
     """
     support different point cloud sampling methods
-    point_cloud: (N, 6), xyz+rgb
+    point_cloud: (N, D) where D can be 6 (xyz+rgb) or 8 (xyz+rgb+uv)
     """
     if num_points == 'all': # use all points
         return point_cloud
     if point_cloud.shape[0] <= num_points:
-        # pad with zeros
-        point_cloud = np.concatenate([point_cloud, np.zeros((num_points - point_cloud.shape[0], 6))], axis=0)
+        # pad with zeros - dynamically detect feature dimension
+        feature_dim = point_cloud.shape[1]
+        point_cloud = np.concatenate([point_cloud, np.zeros((num_points - point_cloud.shape[0], feature_dim))], axis=0)
         return point_cloud
     
     if method == 'uniform':
@@ -143,7 +144,7 @@ class MujocoPointcloudWrapperAdroit(gym.Wrapper):
 
     def get_point_cloud(self, use_RGB=True):
         save_img_dir = None
-        point_cloud, depth = self.pc_generator.generateCroppedPointCloud(save_img_dir=save_img_dir) # (N, 6), xyz+rgb
+        point_cloud, depth = self.pc_generator.generateCroppedPointCloud(save_img_dir=save_img_dir) # (N, 8), xyz+rgb+uv
         
         
         # do transform, scale, offset, and crop
