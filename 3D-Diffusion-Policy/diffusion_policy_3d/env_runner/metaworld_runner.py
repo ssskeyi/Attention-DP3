@@ -3,6 +3,16 @@ import numpy as np
 import torch
 import collections
 import tqdm
+import os
+import subprocess
+import tempfile
+import json
+import imageio
+import pycocotools.mask as mask_util
+import base64
+from io import BytesIO
+import time
+import re
 from diffusion_policy_3d.env import MetaWorldEnv
 from diffusion_policy_3d.gym_util.multistep_wrapper import MultiStepWrapper
 from diffusion_policy_3d.gym_util.video_recording_wrapper import SimpleVideoRecordingWrapper
@@ -59,6 +69,187 @@ class MetaworldRunner(BaseRunner):
         self.logger_util_test = logger_util.LargestKRecorder(K=3)
         self.logger_util_test10 = logger_util.LargestKRecorder(K=5)
 
+        # Grounded-SAM-2 config (for realtime attn generation)
+        self.gs2_api_url = os.getenv("GS2_API_URL", "http://127.0.0.1:5000")
+        self.gs2_verbose = os.getenv("GS2_VERBOSE", "0").lower() in ("1", "true", "yes")
+        self.gs2_conda_env = "aedp3_vis"
+        self.gs2_text_prompt = self._get_text_prompt_for_task(task_name)
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        self.gs2_script_path = os.path.join(project_root, "Grounded-SAM-2", "infer_grounded_sam2_single.py")
+        self.gs2_sam2_ckpt = "checkpoints/sam2.1_hiera_large.pt"
+        self.gs2_sam2_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
+        self.gs2_gdino_cfg = "grounding_dino/groundingdino/config/GroundingDINO_SwinT_OGC.py"
+        self.gs2_gdino_ckpt = "gdino_checkpoints/groundingdino_swint_ogc.pth"
+        self.gs2_device = "cuda"
+        self.gs2_box_thr = 0.35
+        self.gs2_text_thr = 0.25
+        temp_dir = os.path.join(project_root, "temp")
+        os.makedirs(temp_dir, exist_ok=True)
+        self.temp_dir = temp_dir
+
+    def _get_text_prompt_for_task(self, task_name):
+        """Get text prompt for Grounded-SAM-2 based on task name."""
+        prompts = {
+            'door': 'door handle. door.',
+            'hammer': 'hammer. handle.',
+            'pick-place': 'object. pick. place.',
+            'sweep': 'sweep. broom.',
+            'window-open': 'window. handle.',
+        }
+        return prompts.get(task_name, 'object.')  # Default fallback
+
+    def _build_attn_from_mask(self, point_cloud, mask_json, img_res=(84, 84), n_points=512, n_channels=3):
+        """
+        Build attn_3d from point cloud and mask JSON (same logic as convert_zarr_with_attn3d.py).
+        point_cloud: (N_pc, 8) xyzrgbuv, where uv is normalized [0, 1]
+        mask_json: json dict from grounded_sam2
+        img_res: (H, W) of original image
+        """
+        H, W = img_res
+        if point_cloud.shape[0] >= n_points:
+            idx = np.random.choice(point_cloud.shape[0], n_points, replace=False)
+            pc = point_cloud[idx]
+        else:
+            pc = np.zeros((n_points, point_cloud.shape[1]), dtype=point_cloud.dtype)
+            pc[: point_cloud.shape[0]] = point_cloud
+
+        xyz = pc[:, :3]
+        if pc.shape[1] >= 8:
+            u_norm = pc[:, 6]
+            v_norm = pc[:, 7]
+        else:
+            u_norm = np.zeros(pc.shape[0], dtype=np.float32)
+            v_norm = np.zeros(pc.shape[0], dtype=np.float32)
+
+        u_pix = np.clip((u_norm * W).round().astype(int), 0, W - 1)
+        v_pix = np.clip((v_norm * H).round().astype(int), 0, H - 1)
+
+        attn = np.zeros((n_channels, n_points), dtype=np.float32)
+        mask_hit = np.zeros(n_points, dtype=bool)
+
+        if mask_json and "annotations" in mask_json and len(mask_json["annotations"]) > 0:
+            for ann in mask_json["annotations"]:
+                rle = ann["segmentation"]
+                if isinstance(rle, dict) and "counts" in rle:
+                    try:
+                        mask = mask_util.decode(rle).astype(bool)
+                        mask_hit |= mask[v_pix, u_pix]
+                    except Exception:
+                        continue
+
+        attn[0] = mask_hit.astype(np.float32)
+        x_center = xyz[:, 0].mean()
+        x_dist = np.abs(xyz[:, 0] - x_center)
+        x_dist_norm = x_dist / (x_dist.max() + 1e-6)
+        attn[1] = (1.0 - x_dist_norm) * mask_hit.astype(np.float32)
+        attn[2] = (1.0 - mask_hit.astype(np.float32))
+        return attn
+
+    def _generate_attn_3d_inference(self, rgb_img, point_cloud_with_uv, img_res=(84, 84)):
+        """Generate attn_3d during inference by calling Grounded-SAM-2 (API preferred)."""
+        try:
+            import requests
+            HAS_REQUESTS = True
+        except Exception:
+            HAS_REQUESTS = False
+
+        if self.gs2_api_url and HAS_REQUESTS:
+            try:
+                from PIL import Image
+                img_pil = Image.fromarray(rgb_img)
+                img_bytes = BytesIO()
+                img_pil.save(img_bytes, format="PNG")
+                img_bytes.seek(0)
+                img_base64 = base64.b64encode(img_bytes.read()).decode("utf-8")
+
+                api_url = f"{self.gs2_api_url}/infer"
+                payload = {
+                    "image_base64": img_base64,
+                    "text": self.gs2_text_prompt,
+                    "box_thr": self.gs2_box_thr,
+                    "text_thr": self.gs2_text_thr,
+                }
+                if self.gs2_verbose:
+                    cprint(f"[GM2-API] Calling Grounded-SAM-2 API...", "cyan")
+                response = requests.post(api_url, json=payload, timeout=60)
+                if response.status_code != 200:
+                    return np.zeros((3, 512), dtype=np.float32)
+                mask_json = response.json()
+                attn_3d = self._build_attn_from_mask(point_cloud_with_uv, mask_json, img_res=img_res, n_points=512, n_channels=3)
+                return attn_3d
+            except Exception:
+                return self._generate_attn_3d_via_subprocess(rgb_img, point_cloud_with_uv, img_res)
+        else:
+            return self._generate_attn_3d_via_subprocess(rgb_img, point_cloud_with_uv, img_res)
+
+    def _generate_attn_3d_via_subprocess(self, rgb_img, point_cloud_with_uv, img_res=(84,84)):
+        try:
+            temp_img_path = os.path.join(self.temp_dir, f"temp_img_{os.getpid()}_{np.random.randint(0,1000000)}.png")
+            temp_json_path = temp_img_path.replace(".png", ".json")
+            imageio.imwrite(temp_img_path, rgb_img)
+            script_path = os.path.abspath(self.gs2_script_path)
+            gs2_root = os.path.dirname(script_path)
+            if not os.path.exists(gs2_root):
+                return np.zeros((3,512), dtype=np.float32)
+            cmd = [
+                "conda", "run", "-n", self.gs2_conda_env,
+                "python", script_path,
+                "--img_path", temp_img_path,
+                "--output_json", temp_json_path,
+                "--text", self.gs2_text_prompt,
+                "--sam2_ckpt", self.gs2_sam2_ckpt,
+                "--sam2_cfg", self.gs2_sam2_cfg,
+                "--gdino_cfg", self.gs2_gdino_cfg,
+                "--gdino_ckpt", self.gs2_gdino_ckpt,
+                "--device", self.gs2_device,
+                "--box_thr", str(self.gs2_box_thr),
+                "--text_thr", str(self.gs2_text_thr),
+            ]
+            process = subprocess.Popen(cmd, cwd=gs2_root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, universal_newlines=True)
+            stdout_lines = []
+            timeout_seconds = 60
+            start_time = time.time()
+            warning_patterns = [r"UserWarning:", r"Triggered internally", r"Falling back to", r"Memory efficient"]
+            def should_print_line(line):
+                if not line.strip():
+                    return False
+                for pattern in warning_patterns:
+                    if re.search(pattern, line, re.IGNORECASE):
+                        return False
+                return True
+            try:
+                for line in process.stdout:
+                    if time.time() - start_time > timeout_seconds:
+                        raise subprocess.TimeoutExpired(cmd, timeout_seconds)
+                    line = line.rstrip()
+                    if should_print_line(line):
+                        if self.gs2_verbose:
+                            cprint(f"[GM2] {line}", "cyan")
+                        stdout_lines.append(line)
+                process.wait(timeout=max(1, timeout_seconds - (time.time() - start_time)))
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                return np.zeros((3,512), dtype=np.float32)
+            if process.returncode != 0:
+                return np.zeros((3,512), dtype=np.float32)
+            if not os.path.exists(temp_json_path):
+                return np.zeros((3,512), dtype=np.float32)
+            with open(temp_json_path, "r") as f:
+                mask_json = json.load(f)
+            attn_3d = self._build_attn_from_mask(point_cloud_with_uv, mask_json, img_res=img_res, n_points=512, n_channels=3)
+            return attn_3d
+        except Exception:
+            return np.zeros((3,512), dtype=np.float32)
+        finally:
+            try:
+                if os.path.exists(temp_img_path):
+                    os.remove(temp_img_path)
+                if os.path.exists(temp_json_path):
+                    os.remove(temp_json_path)
+            except Exception:
+                pass
+
     def run(self, policy: BasePolicy, save_video=False):
         device = policy.device
         dtype = policy.dtype
@@ -85,8 +276,73 @@ class MetaworldRunner(BaseRunner):
 
                 with torch.no_grad():
                     obs_dict_input = {}
+                    # basic fields
                     obs_dict_input['point_cloud'] = obs_dict['point_cloud'].unsqueeze(0)
                     obs_dict_input['agent_pos'] = obs_dict['agent_pos'].unsqueeze(0)
+
+                    # Check if policy expects attn_3d
+                    needs_attn_3d = False
+                    if hasattr(policy, 'shape_meta') and 'attn_3d' in policy.shape_meta.get('obs', {}):
+                        needs_attn_3d = True
+                    elif hasattr(policy, 'obs_encoder') and hasattr(policy.obs_encoder, 'use_attn_3d') and policy.obs_encoder.use_attn_3d:
+                        needs_attn_3d = True
+
+                    if needs_attn_3d:
+                        # If environment already provides attn_3d in obs, use it
+                        if 'attn_3d' in np_obs_dict:
+                            attn_3d = np_obs_dict['attn_3d']  # (T, C, N) or (C, N)
+                            # ensure shape (1, T, C, N)
+                            if attn_3d.ndim == 2:
+                                attn_3d = np.expand_dims(attn_3d, 0)  # (1, C, N)
+                                attn_3d = np.expand_dims(attn_3d, 0)  # (1, 1, C, N)
+                            elif attn_3d.ndim == 3:
+                                attn_3d = np.expand_dims(attn_3d, 0)  # (1, T, C, N)
+                            obs_dict_input['attn_3d'] = torch.from_numpy(attn_3d).to(device=device, dtype=dtype)
+                        else:
+                            # Generate attn_3d on the fly using Grounded-SAM-2 (API preferred)
+                            rgb_img = None
+                            try:
+                                # try to render rgb image from env
+                                base_env = env.env
+                                while hasattr(base_env, 'env'):
+                                    base_env = base_env.env
+                                rgb_img = base_env.render('rgb_array')
+                            except Exception:
+                                rgb_img = None
+
+                            # Try to get full point cloud (with UV) from wrapper if available
+                            point_cloud_full = None
+                            try:
+                                base_wrapper = env.env
+                                if hasattr(base_wrapper, 'pc_generator'):
+                                    pc_full, _ = base_wrapper.get_point_cloud(use_RGB=True)
+                                    if pc_full.shape[-1] >= 8:
+                                        point_cloud_full = np.stack([pc_full] * self.n_obs_steps, axis=0)
+                            except Exception:
+                                point_cloud_full = None
+
+                            # Fallback to check original obs dict for point_cloud with UV
+                            if point_cloud_full is None:
+                                pc_orig = np_obs_dict.get('point_cloud')
+                                if pc_orig is not None and pc_orig.shape[-1] >= 8:
+                                    point_cloud_full = pc_orig
+
+                            # Generate attn_3d for timesteps if possible
+                            if rgb_img is not None and point_cloud_full is not None:
+                                T = point_cloud_full.shape[0]
+                                attn_3d_list = []
+                                for t in range(T):
+                                    pc_t = point_cloud_full[t]
+                                    if pc_t.shape[-1] < 8:
+                                        attn_3d_t = np.zeros((3, 512), dtype=np.float32)
+                                    else:
+                                        attn_3d_t = self._generate_attn_3d_inference(rgb_img, pc_t, img_res=rgb_img.shape[:2])
+                                    attn_3d_list.append(attn_3d_t)
+                                attn_3d = np.stack(attn_3d_list, axis=0)  # (T, C, N)
+                            else:
+                                attn_3d = np.zeros((self.n_obs_steps, 3, 512), dtype=np.float32)
+                            obs_dict_input['attn_3d'] = torch.from_numpy(attn_3d).to(device=device, dtype=dtype).unsqueeze(0)
+
                     action_dict = policy.predict_action(obs_dict_input)
 
                 np_action_dict = dict_apply(action_dict,

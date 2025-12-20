@@ -11,17 +11,37 @@ from diffusion_policy_3d.dataset.base_dataset import BaseDataset
 
 class MetaworldDataset(BaseDataset):
     def __init__(self,
-            zarr_path, 
+            zarr_path,
             horizon=1,
             pad_before=0,
             pad_after=0,
             seed=42,
             val_ratio=0.0,
             max_train_episodes=None,
+            use_attn_3d=False,
+            attn_3d_n_points=512,
+            attn_3d_n_channels=3,
             ):
         super().__init__()
-        self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['state', 'action', 'point_cloud'])
+        self.use_attn_3d = use_attn_3d
+        self.attn_3d_n_points = attn_3d_n_points
+        self.attn_3d_n_channels = attn_3d_n_channels
+
+        keys_to_load = ['state', 'action', 'point_cloud']
+        self.has_attn_3d_in_zarr = False
+        if use_attn_3d:
+            try:
+                # Test existence of attn_3d in zarr
+                test_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=['attn_3d'])
+                self.has_attn_3d_in_zarr = True
+                keys_to_load.append('attn_3d')
+            except (KeyError, ValueError):
+                raise ValueError(
+                    f"use_attn_3d=True but attn_3d not found in zarr: {zarr_path}\n"
+                    f"Please pre-compute attn_3d using scripts/convert_zarr_with_attn3d.py before training."
+                )
+
+        self.replay_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=keys_to_load)
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
@@ -61,6 +81,10 @@ class MetaworldDataset(BaseDataset):
             'agent_pos': self.replay_buffer['state'][...,:],
             'point_cloud': self.replay_buffer['point_cloud'],
         }
+        if self.use_attn_3d:
+            if not self.has_attn_3d_in_zarr:
+                raise ValueError("use_attn_3d=True but attn_3d not found in zarr. This should have been caught in __init__.")
+            data['attn_3d'] = self.replay_buffer['attn_3d']
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         return normalizer
@@ -79,6 +103,11 @@ class MetaworldDataset(BaseDataset):
             },
             'action': sample['action'].astype(np.float32)
         }
+        if self.use_attn_3d:
+            if not self.has_attn_3d_in_zarr:
+                raise ValueError("use_attn_3d=True but attn_3d not found in sample. Check zarr.")
+            attn_3d = sample['attn_3d'].astype(np.float32)  # (T, C, N)
+            data['obs']['attn_3d'] = attn_3d
         return data
     
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
