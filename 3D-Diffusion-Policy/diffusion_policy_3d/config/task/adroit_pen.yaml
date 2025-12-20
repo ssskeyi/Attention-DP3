@@ -12,7 +12,7 @@ shape_meta: &shape_meta
       shape: [24]
       type: low_dim
     attn_3d:
-      shape: [4, 512]  # [C, N] where C=4 channels, N=512 points (aligned with point_cloud)
+      shape: [3, 512]  # [C, N] where C=3 channels (mask, distance, inverse), N=512 points
       type: spatial
   action:
     shape: [24]

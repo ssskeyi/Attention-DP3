@@ -21,7 +21,7 @@ class AdroitDataset(BaseDataset):
             task_name=None,
             use_attn_3d=True,
             attn_3d_n_points=512,
-            attn_3d_n_channels=4,
+            attn_3d_n_channels=3,
             ):
         super().__init__()
         self.task_name = task_name

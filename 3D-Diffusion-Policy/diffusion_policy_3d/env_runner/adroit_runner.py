@@ -115,7 +115,7 @@ class AdroitRunner(BaseRunner):
         }
         return prompts.get(task_name, 'object.')  # Default fallback
     
-    def _build_attn_from_mask(self, point_cloud, mask_json, img_res=(84, 84), n_points=512, n_channels=4):
+    def _build_attn_from_mask(self, point_cloud, mask_json, img_res=(84, 84), n_points=512, n_channels=3):
         """
         Build attn_3d from point cloud and mask JSON (same logic as convert_zarr_with_attn3d.py).
         point_cloud: (N_pc, 8) xyzrgbuv, where uv is normalized [0, 1]
@@ -179,8 +179,7 @@ class AdroitRunner(BaseRunner):
         # Channel 2: Inverse distance (for obstacle/background attention)
         attn[2] = (1.0 - mask_hit.astype(np.float32))  # Points NOT in mask
         
-        # Channel 3: Normalized spatial coordinate (x)
-        attn[3] = (xyz[:, 0] - xyz[:, 0].mean()) / (xyz[:, 0].std() + 1e-6)
+        # NOTE: Channel 3 (normalized x coordinate) removed — only channels 0-2 are kept.
         
         return attn
     
@@ -233,14 +232,14 @@ class AdroitRunner(BaseRunner):
                 error_msg = response.json().get("error", f"HTTP {response.status_code}")
                 if self.gs2_verbose:
                     cprint(f"[error] Grounded-SAM-2 API error: {error_msg}", "red")
-                return np.zeros((4, 512), dtype=np.float32)
+                return np.zeros((3, 512), dtype=np.float32)
             
             # Parse response
             mask_json = response.json()
             
             # Build attn_3d from mask
             attn_3d = self._build_attn_from_mask(
-                point_cloud_with_uv, mask_json, img_res=img_res, n_points=512, n_channels=4
+                point_cloud_with_uv, mask_json, img_res=img_res, n_points=512, n_channels=3
             )
             
             return attn_3d
@@ -251,7 +250,7 @@ class AdroitRunner(BaseRunner):
             return self._generate_attn_3d_via_subprocess(rgb_img, point_cloud_with_uv, img_res)
         except Exception as e:
             cprint(f"[warn] Failed to generate attn_3d via API: {e}", "yellow")
-            return np.zeros((4, 512), dtype=np.float32)
+            return np.zeros((3, 512), dtype=np.float32)
     
     def _generate_attn_3d_via_subprocess(self, rgb_img, point_cloud_with_uv, img_res=(84, 84)):
         """
@@ -274,7 +273,7 @@ class AdroitRunner(BaseRunner):
             # Verify path exists
             if not os.path.exists(gs2_root):
                 cprint(f"[warn] Grounded-SAM-2 not found at {gs2_root}", "yellow")
-                return np.zeros((4, 512), dtype=np.float32)
+                return np.zeros((3, 512), dtype=np.float32)
             
             # Build command to run in aedp3_vis environment
             # Use conda run to execute in the correct environment
@@ -363,34 +362,34 @@ class AdroitRunner(BaseRunner):
                 process.kill()
                 process.wait()
                 cprint(f"[error] Grounded-SAM-2 inference timeout", "red")
-                return np.zeros((4, 512), dtype=np.float32)
+                return np.zeros((3, 512), dtype=np.float32)
             
             if process.returncode != 0:
                 cprint(f"[error] Grounded-SAM-2 inference failed with return code {process.returncode}", "red")
                 # Return zero attention field as fallback
-                return np.zeros((4, 512), dtype=np.float32)
+                return np.zeros((3, 512), dtype=np.float32)
             
             # Load JSON result
             if not os.path.exists(temp_json_path):
                 cprint(f"[warn] Grounded-SAM-2 output JSON not found: {temp_json_path}", "yellow")
-                return np.zeros((4, 512), dtype=np.float32)
+                return np.zeros((3, 512), dtype=np.float32)
             
             with open(temp_json_path, "r") as f:
                 mask_json = json.load(f)
             
             # Build attn_3d from mask
             attn_3d = self._build_attn_from_mask(
-                point_cloud_with_uv, mask_json, img_res=img_res, n_points=512, n_channels=4
+                point_cloud_with_uv, mask_json, img_res=img_res, n_points=512, n_channels=3
             )
             
             return attn_3d
             
         except subprocess.TimeoutExpired:
             cprint(f"[warn] Grounded-SAM-2 inference timeout", "yellow")
-            return np.zeros((4, 512), dtype=np.float32)
+            return np.zeros((3, 512), dtype=np.float32)
         except Exception as e:
             cprint(f"[warn] Failed to generate attn_3d: {e}", "yellow")
-            return np.zeros((4, 512), dtype=np.float32)
+            return np.zeros((3, 512), dtype=np.float32)
         finally:
             # Clean up temporary files
             try:
@@ -510,7 +509,7 @@ class AdroitRunner(BaseRunner):
                                     if pc_t.shape[-1] < 8:
                                         cprint(f"[warn] Point cloud at timestep {t} doesn't have UV coordinates (shape: {pc_t.shape}), using fallback", "yellow")
                                         # Fallback: generate zero attention
-                                        attn_3d_t = np.zeros((4, 512), dtype=np.float32)
+                                        attn_3d_t = np.zeros((3, 512), dtype=np.float32)
                                     else:
                                         # Generate attn_3d using Grounded-SAM-2
                                         # Use latest RGB image for all timesteps (could be improved to use per-timestep images)
@@ -524,7 +523,7 @@ class AdroitRunner(BaseRunner):
                             else:
                                 # Fallback: generate zero attention
                                 cprint(f"[warn] Cannot generate attn_3d (rgb_img={rgb_img is not None}, pc_full={point_cloud_full is not None}), using zero attention", "yellow")
-                                attn_3d = np.zeros((self.n_obs_steps, 4, 512), dtype=np.float32)
+                                attn_3d = np.zeros((self.n_obs_steps, 3, 512), dtype=np.float32)
                             
                             # Convert to torch and add to obs_dict_input
                             obs_dict_input['attn_3d'] = torch.from_numpy(attn_3d).to(device=device, dtype=dtype).unsqueeze(0)  # (1, T, C, N)
