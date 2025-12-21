@@ -4,8 +4,8 @@ set -euo pipefail
 # 一次性串行跑完 Adroit 六个实验（attn / no_attn 各三项）。
 # 需在已激活的 aedp3 环境下运行。
 # addition_info 自动设置：
-#   - 带 attn 的任务（adroit_pen/hammer/door）: 1212aedp3
-#   - 不带 attn 的任务（*_no_attn）: 1212dp3
+#   - 带 attn 的任务（adroit_pen/hammer/door）: 1221aedp3
+#   - 不带 attn 的任务（*_no_attn）: 1221dp3
 # exp_name 格式：${task}-${CONFIG_NAME}-${addition_info}（与 train_policy.sh 完全一致）
 # 环境变量可选：
 #   GPU_ID=0                使用的 GPU ID（会设 CUDA_VISIBLE_DEVICES）
@@ -51,11 +51,11 @@ total_start=$(date +%s)
 
 for task in "${TASKS[@]}"; do
   task_start=$(date +%s)
-  # 根据任务名自动设置 addition_info：带 attn 用 1212aedp3，不带 attn 用 1212dp3
+  # 根据任务名自动设置 addition_info：带 attn 用 1221aedp3，不带 attn 用 1221dp3
   if [[ "${task}" == *_no_attn ]]; then
-    addition_info="1212dp3"
+    addition_info="1221dp3"
   else
-    addition_info="1212aedp3"
+    addition_info="1221aedp3"
   fi
   
   # exp_name 格式与 train_policy.sh 保持一致：${task}-${alg_name}-${addition_info}

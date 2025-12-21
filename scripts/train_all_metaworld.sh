@@ -50,9 +50,9 @@ total_start=$(date +%s)
 for task in "${TASKS[@]}"; do
   task_start=$(date +%s)
   if [[ "${task}" == *_no_attn ]]; then
-    addition_info="1212mw"
+    addition_info="1221mw"
   else
-    addition_info="1212mwaedp3"
+    addition_info="1221mwaedp3"
   fi
   exp_name="${task}-${CONFIG_NAME}-${addition_info}"
   run_dir="data/outputs/${exp_name}_seed${SEED}"

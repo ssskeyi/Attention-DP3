@@ -10,6 +10,7 @@ import json
 import warnings
 import numpy as np
 import torch
+import random
 from torchvision.ops import box_convert
 import pycocotools.mask as mask_util
 import cv2
@@ -45,6 +46,7 @@ def run_on_image(
     multimask: bool = False,
 ) -> dict:
     """Run Grounded-SAM-2 on a single image."""
+    # Note: run_on_image does not set seeds itself; caller (main) should set seed
     image_source, image = load_image(img_path)
 
     # GroundingDINO
@@ -132,7 +134,21 @@ def main():
     parser.add_argument("--box_thr", type=float, default=0.35)
     parser.add_argument("--text_thr", type=float, default=0.25)
     parser.add_argument("--multimask", action="store_true")
+    parser.add_argument("--seed", type=int, default=0, help="Random seed for deterministic inference (default: 0)")
     args = parser.parse_args()
+
+    # Set deterministic seeds for reproducibility
+    def set_seed(seed: int):
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        # Make cudnn deterministic where possible
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+    set_seed(int(args.seed))
 
     # Get Grounded-SAM-2 root (current directory)
     gs2_root = os.path.dirname(os.path.abspath(__file__))

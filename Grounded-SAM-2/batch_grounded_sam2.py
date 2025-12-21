@@ -7,6 +7,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 import torch
+import random
 from torchvision.ops import box_convert
 import pycocotools.mask as mask_util
 
@@ -35,6 +36,7 @@ def run_on_image_via_api(
     box_thr: float,
     text_thr: float,
     multimask: bool = False,
+    seed: int = 0,
 ) -> dict:
     """Run inference via HTTP API (faster, no model reload)."""
     try:
@@ -45,6 +47,7 @@ def run_on_image_via_api(
             "box_thr": box_thr,
             "text_thr": text_thr,
             "multimask": multimask,
+            "seed": int(seed),
         }
         
         # Make API call
@@ -88,7 +91,20 @@ def run_on_image(
     box_thr: float,
     text_thr: float,
     multimask: bool = False,
+    seed: int = 0,
 ) -> dict:
+    # Set deterministic seeds for reproducibility per-image
+    def set_seed(seed_val: int):
+        random.seed(seed_val)
+        np.random.seed(seed_val)
+        torch.manual_seed(seed_val)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed_val)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+    set_seed(int(seed))
+
     image_source, image = load_image(img_path)
 
     # GroundingDINO
@@ -173,6 +189,7 @@ def main():
     ap.add_argument("--box_thr", type=float, default=0.35)
     ap.add_argument("--text_thr", type=float, default=0.25)
     ap.add_argument("--multimask", action="store_true")
+    ap.add_argument("--seed", type=int, default=0, help="Random seed for deterministic inference (default: 0)")
     args = ap.parse_args()
     
     # Check if API mode should be used
@@ -219,6 +236,7 @@ def main():
                     args.box_thr,
                     args.text_thr,
                     multimask=args.multimask,
+                    seed=args.seed,
                 )
             else:
                 res = run_on_image(
@@ -232,6 +250,7 @@ def main():
                     args.box_thr,
                     args.text_thr,
                     multimask=args.multimask,
+                    seed=args.seed,
                 )
             with open(out_json, "w") as f:
                 json.dump(res, f)

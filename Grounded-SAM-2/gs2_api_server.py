@@ -18,6 +18,7 @@ from torchvision.ops import box_convert
 import pycocotools.mask as mask_util
 from PIL import Image
 import cv2
+import random
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
@@ -43,6 +44,7 @@ grounding_model = None
 sam2_model = None
 sam2_predictor = None
 device = None
+server_seed = 0
 
 
 def single_mask_to_rle(mask: np.ndarray):
@@ -102,6 +104,19 @@ def load_models(
     print("[GS2-API] SAM2 loaded.")
     
     print("[GS2-API] All models loaded successfully!")
+
+
+def set_seed(seed_val: int):
+    """Set random seeds for reproducible inference."""
+    global server_seed
+    server_seed = int(seed_val)
+    random.seed(server_seed)
+    np.random.seed(server_seed)
+    torch.manual_seed(server_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(server_seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def run_inference(
@@ -244,6 +259,15 @@ def infer():
         else:
             return jsonify({"error": "Either 'image_base64' or 'image_path' must be provided"}), 400
         
+        # Optionally set per-request seed (falls back to server default)
+        req_seed = data.get("seed", None)
+        if req_seed is not None:
+            try:
+                set_seed(int(req_seed))
+            except Exception:
+                # ignore invalid seed and continue with server default
+                pass
+
         # Run inference
         results = run_inference(
             image_source=image_source,
@@ -275,6 +299,7 @@ def main():
     parser.add_argument("--gdino_ckpt", default="gdino_checkpoints/groundingdino_swint_ogc.pth")
     parser.add_argument("--device", default="cuda", 
                         help="Device to use (e.g., 'cuda', 'cuda:0', 'cuda:1', 'cpu'). Default: 'cuda'")
+    parser.add_argument("--seed", type=int, default=0, help="Server default random seed for deterministic inference (default: 0)")
     args = parser.parse_args()
     
     # Get Grounded-SAM-2 root (current directory)
@@ -294,6 +319,9 @@ def main():
     
     # Load models
     try:
+        # Set server-level seed before loading models for deterministic initialization
+        set_seed(int(args.seed))
+
         load_models(
             sam2_checkpoint=args.sam2_ckpt,
             sam2_config=args.sam2_cfg,

@@ -27,8 +27,8 @@ log() { echo -e "[make_metaworld] $*"; }
 gen_demo() {
   local task="$1"
   log "生成演示: ${task}"
-  pushd "${ROOT}/scripts" >/dev/null
-  bash gen_demonstration_metaworld.sh "${task}"
+  pushd "${ROOT}" >/dev/null
+  bash "${ROOT}/scripts/gen_demonstration_metaworld.sh" "${task}"
   popd >/dev/null
 }
 
