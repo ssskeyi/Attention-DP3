@@ -47,7 +47,22 @@ gs2_for_task() {
   local task="$1"
   local frames_root="${ROOT}/3D-Diffusion-Policy/export/metaworld_${task}_frames"
   local output_root="${ROOT}/3D-Diffusion-Policy/export_gs2/metaworld_${task}"
-  local text_prompt="${task}"
+  # Resolve task -> descriptive text prompt (do not simply use the task name)
+  task_to_prompt() {
+    local t="$1"
+    case "${t}" in
+      hammer) echo "a hammer with a gray head and a red handle." ;;
+      pick-place) echo "a little red rectangular prism." ;;
+      shelf-place) echo "a little blue rectangular prism. shelf." ;;
+      soccer) echo "soccer. soccer goal." ;;
+      stick-pull|stick-push) echo "blue stick. gray thermos." ;;
+      sweep|sweep-into) echo "a little brown rectangular prism." ;;
+      window-close|window-open) echo "window." ;;
+      *) echo "${t}" ;; # fallback: pass through
+    esac
+  }
+  local text_prompt
+  text_prompt="$(task_to_prompt "${task}")"
   log "运行 GS2: ${task} -> ${output_root}"
   local runner=()
   if [[ -n "${GS2_CONDA_ENV:-}" ]]; then

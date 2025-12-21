@@ -89,12 +89,18 @@ class MetaworldRunner(BaseRunner):
 
     def _get_text_prompt_for_task(self, task_name):
         """Get text prompt for Grounded-SAM-2 based on task name."""
+        # Mapping kept consistent with scripts/make_metaworld_datasets.sh
         prompts = {
-            'door': 'door handle. door.',
-            'hammer': 'hammer. handle.',
-            'pick-place': 'object. pick. place.',
-            'sweep': 'sweep. broom.',
-            'window-open': 'window. handle.',
+            'hammer': 'a hammer with a gray head and a red handle.',
+            'pick-place': 'a little red rectangular prism.',
+            'shelf-place': 'a little blue rectangular prism. shelf.',
+            'soccer': 'soccer. soccer goal.',
+            'stick-pull': 'blue stick. gray thermos.',
+            'stick-push': 'blue stick. gray thermos.',
+            'sweep': 'a little brown rectangular prism.',
+            'sweep-into': 'a little brown rectangular prism.',
+            'window-close': 'window.',
+            'window-open': 'window.',
         }
         return prompts.get(task_name, 'object.')  # Default fallback
 

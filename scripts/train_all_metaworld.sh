@@ -71,7 +71,7 @@ for task in "${TASKS[@]}"; do
                             exp_name=${exp_name} \
                             logging.mode=${wandb_mode} \
                             logging.name=${run_name} \
-                            logging.project=wetaworld_cmp \
+                            logging.project=aedp3_wetaworld_cmp \
                             checkpoint.save_ckpt=${save_ckpt} \
                             ${EXTRA_ARGS}
   task_end=$(date +%s)
