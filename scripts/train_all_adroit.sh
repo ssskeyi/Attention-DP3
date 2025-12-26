@@ -26,10 +26,10 @@ EXTRA_ARGS="${EXTRA_ARGS:-}"
 
 TASKS=(
   adroit_pen_no_attn
-  adroit_pen
   adroit_hammer_no_attn
-  adroit_hammer
   adroit_door_no_attn
+  adroit_pen
+  adroit_hammer
   adroit_door
 )
 
@@ -53,9 +53,9 @@ for task in "${TASKS[@]}"; do
   task_start=$(date +%s)
   # 根据任务名自动设置 addition_info：带 attn 用 1221aedp3，不带 attn 用 1221dp3
   if [[ "${task}" == *_no_attn ]]; then
-    addition_info="1221dp3"
+    addition_info="1226dp3"
   else
-    addition_info="1221aedp3"
+    addition_info="1226aedp3"
   fi
   
   # exp_name 格式与 train_policy.sh 保持一致：${task}-${alg_name}-${addition_info}
@@ -78,6 +78,7 @@ for task in "${TASKS[@]}"; do
                             exp_name=${exp_name} \
                             logging.mode=${wandb_mode} \
                             logging.name=${run_name} \
+                            logging.project=aedp3_adroit_cmp_1226_main \
                             checkpoint.save_ckpt=${save_ckpt} \
                             ${EXTRA_ARGS}
   task_end=$(date +%s)

@@ -51,13 +51,13 @@ gs2_for_task() {
   task_to_prompt() {
     local t="$1"
     case "${t}" in
-      hammer) echo "a hammer with a gray head and a red handle." ;;
-      pick-place) echo "a little red rectangular prism." ;;
-      shelf-place) echo "a little blue rectangular prism. shelf." ;;
-      soccer) echo "soccer. soccer goal." ;;
-      stick-pull|stick-push) echo "blue stick. gray thermos." ;;
-      sweep|sweep-into) echo "a little brown rectangular prism." ;;
-      window-close|window-open) echo "window." ;;
+      hammer) echo "red robotic arm. a hammer with a gray head and a red handle." ;;
+      pick-place) echo "red robotic arm. a little red rectangular prism." ;;
+      shelf-place) echo "red robotic arm. a little blue rectangular prism. shelf." ;;
+      soccer) echo "red robotic arm. soccer. soccer goal." ;;
+      stick-pull|stick-push) echo "red robotic arm. blue stick. gray thermos." ;;
+      sweep|sweep-into) echo "red robotic arm. a little brown rectangular prism." ;;
+      window-close|window-open) echo "red robotic arm. window." ;;
       *) echo "${t}" ;; # fallback: pass through
     esac
   }
