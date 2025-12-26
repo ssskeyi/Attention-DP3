@@ -16,6 +16,7 @@ set -euo pipefail
 #   N_POINTS (默认 512)       : attn_3d 采样点数
 #   TASKS (默认 "door hammer pen")
 #   GS2_CONDA_ENV (默认 aedp3_vis): 指定运行 gs2.sh 时的 conda 环境
+#   USE_ENV_SEG (默认 false)  : 是否使用环境直接提供的分割掩码，而不是GS2
 
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
 GPU="${GPU:-0}"
@@ -26,20 +27,26 @@ TASKS="${TASKS:-door hammer pen}"
 GS2_DIR="${GS2_DIR:-${ROOT}/Grounded-SAM-2}"
 # 修改处：设置默认 conda 环境为 aedp3_vis
 GS2_CONDA_ENV="${GS2_CONDA_ENV:-aedp3_vis}"
+USE_ENV_SEG="${USE_ENV_SEG:-false}"
 
 log() { echo -e "[make_adroit] $*"; }
 
 gen_demo() {
   local task="$1"
-  log "生成演示: ${task}"
+  log "生成演示: ${task} (USE_ENV_SEG=${USE_ENV_SEG})"
   pushd "${ROOT}/third_party/VRL3/src" >/dev/null
+  local use_env_seg_flag=""
+  if [ "${USE_ENV_SEG}" = "true" ]; then
+    use_env_seg_flag="--use_env_seg"
+  fi
   CUDA_VISIBLE_DEVICES="${GPU}" python gen_demonstration_expert.py --env_name "${task}" \
     --num_episodes "${MAX_EP}" \
     --root_dir "../../../3D-Diffusion-Policy/data/" \
     --expert_ckpt_path "../ckpts/vrl3_${task}.pt" \
     --img_size 84 \
     --not_use_multi_view \
-    --use_point_crop
+    --use_point_crop \
+    ${use_env_seg_flag}
   popd >/dev/null
 }
 
@@ -84,12 +91,17 @@ convert_attn_zarr() {
   local json_root="${ROOT}/3D-Diffusion-Policy/export_gs2/adroit_${task}"
   local output_zarr="${ROOT}/3D-Diffusion-Policy/data/adroit_${task}_expert_attn3d.zarr"
   log "生成 attn_3d zarr: ${task} -> ${output_zarr}"
-  bash "${ROOT}/scripts/convert_zarr_with_attn3d.sh" \
-    "${input_zarr}" \
-    "${json_root}" \
-    "${output_zarr}" \
-    "${MAX_EP}" \
-    "${N_POINTS}"
+  local use_env_seg_flag=""
+  if [ "${USE_ENV_SEG}" = "true" ]; then
+    use_env_seg_flag="--use_env_seg"
+  fi
+  python "${ROOT}/scripts/convert_zarr_with_attn3d.py" \
+    --input_zarr "${input_zarr}" \
+    --json_root "${json_root}" \
+    --output_zarr "${output_zarr}" \
+    --n_points "${N_POINTS}" \
+    --max_episodes "${MAX_EP}" \
+    ${use_env_seg_flag}
 }
 
 main() {
@@ -98,11 +110,18 @@ main() {
   log "GPU=${GPU}, DEVICE=${DEVICE}, MAX_EP=${MAX_EP}, N_POINTS=${N_POINTS}"
   log "GS2_DIR=${GS2_DIR}"
   log "GS2_CONDA_ENV=${GS2_CONDA_ENV}"
+  log "USE_ENV_SEG=${USE_ENV_SEG}"
   for task in ${TASKS}; do
     gen_demo "${task}"
-    export_frames "${task}"
-    gs2_for_task "${task}"
-    convert_attn_zarr "${task}"
+    if [ "${USE_ENV_SEG}" = "true" ]; then
+      # 使用环境分割，直接转换zarr
+      convert_attn_zarr "${task}"
+    else
+      # 使用GS2流程
+      export_frames "${task}"
+      gs2_for_task "${task}"
+      convert_attn_zarr "${task}"
+    fi
   done
   log "全部完成"
 }

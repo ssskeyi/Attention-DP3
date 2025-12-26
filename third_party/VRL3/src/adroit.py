@@ -47,6 +47,7 @@ class ExtendedTimeStepAdroit(NamedTuple):
     discount: Any
     observation: Any
     observation_sensor: Any
+    observation_segmentation: Any = None
     action: Any
     n_goal_achieved: Any
     time_limit_reached: Any
@@ -228,7 +229,7 @@ def make_basic_env(env, cam_list=[], from_pixels=False, hybrid_state=None, test_
 class AdroitEnv:
     # a wrapper class that will make Adroit env looks like a dmc env
     def __init__(self, env_name, test_image=False, cam_list=None,
-        num_repeats=2, num_frames=3, env_feature_type='pixels', device=None, reward_rescale=False): 
+        num_repeats=2, num_frames=3, env_feature_type='pixels', device=None, reward_rescale=False, render_segmentation=False): 
         default_env_to_cam_list = {
             'hammer-v0': ['top'],
             'door-v0': ['top'],
@@ -249,6 +250,8 @@ class AdroitEnv:
         else:
             self.reward_rescale_factor = 1
 
+        self.render_segmentation = render_segmentation
+
         # env, _ = make_basic_env(env_name, cam_list=cam_list, from_pixels=from_pixels, hybrid_state=True, 
         #     test_image=test_image, channels_first=True, num_repeats=num_repeats, num_frames=num_frames)
         env = GymEnv(env_name)
@@ -260,9 +263,9 @@ class AdroitEnv:
             width = 256
             latent_dim = 512
             env = BasicAdroitEnv(env, cameras=cam_list,
-                height=height, width=width, latent_dim=latent_dim, hybrid_state=True, 
-                test_image=test_image, channels_first=False, num_repeats=num_repeats, num_frames=num_frames, encoder_type=env_feature_type, 
-                device=device
+                height=height, width=width, latent_dim=latent_dim, hybrid_state=True,
+                test_image=test_image, channels_first=False, num_repeats=num_repeats, num_frames=num_frames, encoder_type=env_feature_type,
+                device=device, render_segmentation=render_segmentation
                 )
         elif env_feature_type == 'pixels':
             height = 84
@@ -270,8 +273,8 @@ class AdroitEnv:
             latent_dim = height*width*len(cam_list)*num_frames
             # RRL class instance is environment wrapper...
             env = BasicAdroitEnv(env, cameras=cam_list,
-                height=height, width=width, latent_dim=latent_dim, hybrid_state=True, 
-                test_image=test_image, channels_first=True, num_repeats=num_repeats, num_frames=num_frames, device=device)
+                height=height, width=width, latent_dim=latent_dim, hybrid_state=True,
+                test_image=test_image, channels_first=True, num_repeats=num_repeats, num_frames=num_frames, device=device, render_segmentation=render_segmentation)
         else:
             raise ValueError("env feature not supported")
 
@@ -292,13 +295,19 @@ class AdroitEnv:
 
     def reset(self):
         # pixels and sensor values
-        obs_pixels, obs_sensor = self._env.reset()
+        reset_result = self._env.reset()
+        if self.render_segmentation:
+            obs_pixels, obs_sensor, obs_segmentations = reset_result
+        else:
+            obs_pixels, obs_sensor = reset_result
+            obs_segmentations = None
         obs_sensor = obs_sensor.astype(np.float32)
         action_spec = self.action_spec()
         action = np.zeros(action_spec.shape, dtype=action_spec.dtype)
 
         time_step = ExtendedTimeStepAdroit(observation=obs_pixels,
                                      observation_sensor=obs_sensor,
+                                     observation_segmentation=obs_segmentations,
                                 step_type=StepType.FIRST,
                                 action=action,
                                 reward=0.0,
@@ -309,13 +318,19 @@ class AdroitEnv:
 
     def get_current_obs_without_reset(self):
         # use this to obtain the first state in a demo
-        obs_pixels, obs_sensor = self._env.get_obs_for_first_state_but_without_reset()
+        obs_result = self._env.get_obs_for_first_state_but_without_reset()
+        if self.render_segmentation:
+            obs_pixels, obs_sensor, obs_segmentations = obs_result
+        else:
+            obs_pixels, obs_sensor = obs_result
+            obs_segmentations = None
         obs_sensor = obs_sensor.astype(np.float32)
         action_spec = self.action_spec()
         action = np.zeros(action_spec.shape, dtype=action_spec.dtype)
 
         time_step = ExtendedTimeStepAdroit(observation=obs_pixels,
                                      observation_sensor=obs_sensor,
+                                     observation_segmentation=obs_segmentations,
                                 step_type=StepType.FIRST,
                                 action=action,
                                 reward=0.0,

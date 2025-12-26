@@ -27,6 +27,7 @@ def parse_args():
     parser.add_argument('--img_size', type=int, default=84, help='image size')
     parser.add_argument('--not_use_multi_view', action='store_true', help='not use multi view')
     parser.add_argument('--use_point_crop', action='store_true', help='use point crop')
+    parser.add_argument('--use_env_seg', action='store_true', help='use environment segmentation instead of GS2')
     args = parser.parse_args()
     return args
 
@@ -48,7 +49,7 @@ def main():
     def create_env():
         env = AdroitEnv(env_name=args.env_name+'-v0', test_image=False, num_repeats=action_repeat,
                         num_frames=frame_stack, env_feature_type='pixels',
-                                            device='cuda', reward_rescale=True)
+                                            device='cuda', reward_rescale=True, render_segmentation=args.use_env_seg)
         env = MujocoPointcloudWrapperAdroit(env=env, env_name='adroit_'+args.env_name, use_point_crop=args.use_point_crop)
         return env
     num_episodes = args.num_episodes
@@ -78,6 +79,7 @@ def main():
     img_arrays = []
     point_cloud_arrays = []
     depth_arrays = []
+    segmentation_arrays = []
     state_arrays = []
     action_arrays = []
     episode_ends_arrays = []
@@ -99,6 +101,7 @@ def main():
         img_arrays_sub = []
         point_cloud_arrays_sub = []
         depth_arrays_sub = []
+        segmentation_arrays_sub = []
         state_arrays_sub = []
         action_arrays_sub = []
         total_count_sub = 0
@@ -126,6 +129,7 @@ def main():
                 action_arrays_sub.append(action)
                 point_cloud_arrays_sub.append(time_step.observation_pointcloud)
                 depth_arrays_sub.append(time_step.observation_depth)
+                segmentation_arrays_sub.append(time_step.observation_segmentation)
                 
             time_step = env.step(action)
             obs = time_step.observation # np array, (3,84,84)
@@ -142,6 +146,7 @@ def main():
             img_arrays.extend(deepcopy(img_arrays_sub))
             point_cloud_arrays.extend(deepcopy(point_cloud_arrays_sub))
             depth_arrays.extend(deepcopy(depth_arrays_sub))
+            segmentation_arrays.extend(deepcopy(segmentation_arrays_sub))
             state_arrays.extend(deepcopy(state_arrays_sub))
             action_arrays.extend(deepcopy(action_arrays_sub))
             print('Episode: {}, Reward: {}, Goal Achieved: {}'.format(episode_idx, total_reward, n_goal_achieved_total)) 
@@ -162,6 +167,7 @@ def main():
     state_arrays = np.stack(state_arrays, axis=0)
     point_cloud_arrays = np.stack(point_cloud_arrays, axis=0)
     depth_arrays = np.stack(depth_arrays, axis=0)
+    segmentation_arrays = np.stack(segmentation_arrays, axis=0)
     action_arrays = np.stack(action_arrays, axis=0)
     episode_ends_arrays = np.array(episode_ends_arrays)
 
@@ -170,11 +176,13 @@ def main():
     state_chunk_size = (100, state_arrays.shape[1])
     point_cloud_chunk_size = (100, point_cloud_arrays.shape[1], point_cloud_arrays.shape[2])
     depth_chunk_size = (100, depth_arrays.shape[1], depth_arrays.shape[2])
+    segmentation_chunk_size = (100, segmentation_arrays.shape[1], segmentation_arrays.shape[2], segmentation_arrays.shape[3])
     action_chunk_size = (100, action_arrays.shape[1])
     zarr_data.create_dataset('img', data=img_arrays, chunks=img_chunk_size, dtype='uint8', overwrite=True, compressor=compressor)
     zarr_data.create_dataset('state', data=state_arrays, chunks=state_chunk_size, dtype='float32', overwrite=True, compressor=compressor)
     zarr_data.create_dataset('point_cloud', data=point_cloud_arrays, chunks=point_cloud_chunk_size, dtype='float32', overwrite=True, compressor=compressor)
     zarr_data.create_dataset('depth', data=depth_arrays, chunks=depth_chunk_size, dtype='float32', overwrite=True, compressor=compressor)
+    zarr_data.create_dataset('segmentation', data=segmentation_arrays, chunks=segmentation_chunk_size, dtype='int32', overwrite=True, compressor=compressor)
     zarr_data.create_dataset('action', data=action_arrays, chunks=action_chunk_size, dtype='float32', overwrite=True, compressor=compressor)
     zarr_meta.create_dataset('episode_ends', data=episode_ends_arrays, dtype='int64', overwrite=True, compressor=compressor)
     
@@ -183,6 +191,7 @@ def main():
     cprint(f'img shape: {img_arrays.shape}, range: [{np.min(img_arrays)}, {np.max(img_arrays)}]', 'green')
     cprint(f'point_cloud shape: {point_cloud_arrays.shape}, range: [{np.min(point_cloud_arrays)}, {np.max(point_cloud_arrays)}]', 'green')
     cprint(f'depth shape: {depth_arrays.shape}, range: [{np.min(depth_arrays)}, {np.max(depth_arrays)}]', 'green')
+    cprint(f'segmentation shape: {segmentation_arrays.shape}, range: [{np.min(segmentation_arrays)}, {np.max(segmentation_arrays)}]', 'green')
     cprint(f'state shape: {state_arrays.shape}, range: [{np.min(state_arrays)}, {np.max(state_arrays)}]', 'green')
     cprint(f'action shape: {action_arrays.shape}, range: [{np.min(action_arrays)}, {np.max(action_arrays)}]', 'green')
     cprint(f'Saved zarr file to {save_dir}', 'green')

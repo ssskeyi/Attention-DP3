@@ -26,8 +26,8 @@ def make_encoder(encoder, encoder_type, device, is_eval=True) :
     return encoder
 
 class BasicAdroitEnv(gym.Env): # , ABC
-    def __init__(self, env, cameras, latent_dim=512, hybrid_state=True, channels_first=False, 
-    height=84, width=84, test_image=False, num_repeats=1, num_frames=1, encoder_type=None, device=None):
+    def __init__(self, env, cameras, latent_dim=512, hybrid_state=True, channels_first=False,
+    height=84, width=84, test_image=False, num_repeats=1, num_frames=1, encoder_type=None, device=None, render_segmentation=False):
         self._env = env
         self.env_id = env.env.unwrapped.spec.id
         self.device = device
@@ -57,9 +57,10 @@ class BasicAdroitEnv(gym.Env): # , ABC
         self.channels_first = channels_first
         self.height = height
         self.width = width
+        self.render_segmentation = render_segmentation
         self.action_space = self._env.action_space
         self.env_kwargs = {'cameras' : cameras, 'latent_dim' : latent_dim, 'hybrid_state': hybrid_state,
-                           'channels_first' : channels_first, 'height' : height, 'width' : width}
+                           'channels_first' : channels_first, 'height' : height, 'width' : width, 'render_segmentation': render_segmentation}
 
         shape = [3, self.width, self.height]
         self._observation_space = gym.spaces.Box(
@@ -76,7 +77,7 @@ class BasicAdroitEnv(gym.Env): # , ABC
         self.observation_dim = self.spec.observation_dim
         self.horizon = self._env.env.spec.max_episode_steps
 
-    def get_obs(self,):
+    def get_obs(self, render_segmentation=False):
         # for our case, let's output the image, and then also the sensor features
         if self.env_id in _mj_envs :
             env_state = self._env.env.get_env_state()
@@ -92,6 +93,7 @@ class BasicAdroitEnv(gym.Env): # , ABC
             qp = qp[6:-6]
 
         imgs = [] # number of image is number of camera
+        segs = [] # segmentation masks for each camera
 
         if self.encoder is not None:
             for cam in self.cameras :
@@ -120,12 +122,28 @@ class BasicAdroitEnv(gym.Env): # , ABC
                     #img = img.astype(np.uint8)
                     # img = Image.fromarray(img) # TODO is this necessary?
                     imgs.append(img)
+
+                    # Render segmentation mask if requested
+                    if render_segmentation:
+                        seg_img, _ = self._env.env.sim.render(width=self.width, height=self.height, mode='offscreen',
+                                                            camera_name=cam, device_id=0, segmentation=True)
+                        seg_img = seg_img[::-1, :, :]  # Image given has to be flipped
+                        if self.channels_first:
+                            seg_img = seg_img.transpose((2, 0, 1))
+                        segs.append(seg_img)
             else:
                 img = (np.random.rand(1, 84, 84) * 255).astype(np.uint8)
                 imgs.append(img)
+                if render_segmentation:
+                    seg = (np.random.rand(1, 84, 84, 2) * 255).astype(np.uint8)
+                    segs.append(seg)
             pixels = np.concatenate(imgs, axis=0)
+            if render_segmentation:
+                segmentations = np.concatenate(segs, axis=0)
+            else:
+                segmentations = None
 
-        # TODO below are what we originally had... 
+        # TODO below are what we originally had...
         # if not self.test_image:
         #     for cam in self.cameras : # for each camera, render once
         #         img = self._env.env.sim.render(width=self.width, height=self.height, mode='offscreen', camera_name=cam, device_id=0) # TODO device id will think later
@@ -145,7 +163,10 @@ class BasicAdroitEnv(gym.Env): # , ABC
             qp = None
 
         sensor_info = qp
-        return pixels, sensor_info
+        if render_segmentation:
+            return pixels, sensor_info, segmentations
+        else:
+            return pixels, sensor_info
 
     def get_env_infos(self):
         return self._env.get_env_infos()
@@ -159,18 +180,34 @@ class BasicAdroitEnv(gym.Env): # , ABC
 
     def reset(self):
         self._env.reset()
-        pixels, sensor_info = self.get_obs()
+        obs_result = self.get_obs(render_segmentation=self.render_segmentation)
+        if self.render_segmentation:
+            pixels, sensor_info, segmentations = obs_result
+        else:
+            pixels, sensor_info = obs_result
+            segmentations = None
         for _ in range(self._num_frames):
             self._frames.append(pixels)
         stacked_pixels = self.get_stacked_pixels()
-        return stacked_pixels, sensor_info
+        if self.render_segmentation:
+            return stacked_pixels, sensor_info, segmentations
+        else:
+            return stacked_pixels, sensor_info
 
     def get_obs_for_first_state_but_without_reset(self):
-        pixels, sensor_info = self.get_obs()
+        obs_result = self.get_obs(render_segmentation=self.render_segmentation)
+        if self.render_segmentation:
+            pixels, sensor_info, segmentations = obs_result
+        else:
+            pixels, sensor_info = obs_result
+            segmentations = None
         for _ in range(self._num_frames):
             self._frames.append(pixels)
         stacked_pixels = self.get_stacked_pixels()
-        return stacked_pixels, sensor_info
+        if self.render_segmentation:
+            return stacked_pixels, sensor_info, segmentations
+        else:
+            return stacked_pixels, sensor_info
 
     def step(self, action):
         reward_sum = 0.0
@@ -386,18 +423,34 @@ class BasicFrankaEnv(gym.Env):
 
     def reset(self):
         self._env.reset()
-        pixels, sensor_info = self.get_obs()
+        obs_result = self.get_obs(render_segmentation=self.render_segmentation)
+        if self.render_segmentation:
+            pixels, sensor_info, segmentations = obs_result
+        else:
+            pixels, sensor_info = obs_result
+            segmentations = None
         for _ in range(self._num_frames):
             self._frames.append(pixels)
         stacked_pixels = self.get_stacked_pixels()
-        return stacked_pixels, sensor_info
+        if self.render_segmentation:
+            return stacked_pixels, sensor_info, segmentations
+        else:
+            return stacked_pixels, sensor_info
 
     def get_obs_for_first_state_but_without_reset(self):
-        pixels, sensor_info = self.get_obs()
+        obs_result = self.get_obs(render_segmentation=self.render_segmentation)
+        if self.render_segmentation:
+            pixels, sensor_info, segmentations = obs_result
+        else:
+            pixels, sensor_info = obs_result
+            segmentations = None
         for _ in range(self._num_frames):
             self._frames.append(pixels)
         stacked_pixels = self.get_stacked_pixels()
-        return stacked_pixels, sensor_info
+        if self.render_segmentation:
+            return stacked_pixels, sensor_info, segmentations
+        else:
+            return stacked_pixels, sensor_info
 
     def step(self, action):
         reward_sum = 0.0

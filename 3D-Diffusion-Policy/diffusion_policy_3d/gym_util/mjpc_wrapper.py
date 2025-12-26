@@ -183,7 +183,7 @@ class MujocoPointcloudWrapperAdroit(gym.Wrapper):
     def step(self, action):
         timestep = self.env.step(action)
         point_cloud, depth = self.get_point_cloud()
-        
+
         # wrap point cloud into obs
         if 'adroit' in self.env_name: # adroit uses a namedtuple for obs
             # so we need to create a new namedtuple
@@ -192,11 +192,12 @@ class MujocoPointcloudWrapperAdroit(gym.Wrapper):
                                          discount=timestep.discount,
                                          observation=timestep.observation,
                                          observation_sensor=timestep.observation_sensor,
+                                         observation_segmentation=timestep.observation_segmentation,
                                          observation_pointcloud=point_cloud,
                                          observation_depth=depth,
                                          action=timestep.action,
                                          n_goal_achieved=timestep.n_goal_achieved,
-                                         time_limit_reached=timestep.time_limit_reached)                        
+                                         time_limit_reached=timestep.time_limit_reached)
         else:
             raise NotImplementedError
         return timestep
@@ -204,7 +205,7 @@ class MujocoPointcloudWrapperAdroit(gym.Wrapper):
     def reset(self):
         timestep = self.env.reset()
         point_cloud, depth = self.get_point_cloud()
-        
+
         # wrap point cloud into obs
         if 'adroit' in self.env_name: # adroit uses a namedtuple for obs
             # so we need to create a new namedtuple
@@ -213,11 +214,12 @@ class MujocoPointcloudWrapperAdroit(gym.Wrapper):
                                          discount=timestep.discount,
                                          observation=timestep.observation,
                                          observation_sensor=timestep.observation_sensor,
+                                         observation_segmentation=timestep.observation_segmentation,
                                          observation_pointcloud=point_cloud,
                                          observation_depth=depth,
                                          action=timestep.action,
                                          n_goal_achieved=timestep.n_goal_achieved,
-                                         time_limit_reached=timestep.time_limit_reached)                        
+                                         time_limit_reached=timestep.time_limit_reached)
         else:
             raise NotImplementedError
         return timestep

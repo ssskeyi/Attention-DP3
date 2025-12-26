@@ -80,20 +80,81 @@ def build_attn_from_mask(point_cloud, mask_json, img_res=(84, 84), n_points=512,
     
     return attn
 
+def build_attn_from_env_seg(point_cloud, seg_data, n_points=512, n_channels=3):
+    """
+    从环境直接提供的分割数据构建attention。
+    seg_data: (H, W, 2) - MuJoCo segmentation data, where each pixel contains [objtype, objid]
+    point_cloud: (N_pc, 8) xyzrgbuv，其中 uv 是归一化的 [0, 1]
+    """
+    H, W, _ = seg_data.shape
+
+    # Sample or pad point cloud
+    if point_cloud.shape[0] >= n_points:
+        idx = np.random.choice(point_cloud.shape[0], n_points, replace=False)
+        pc = point_cloud[idx]
+    else:
+        pc = np.zeros((n_points, point_cloud.shape[1]), dtype=point_cloud.dtype)
+        pc[: point_cloud.shape[0]] = point_cloud
+
+    xyz = pc[:, :3]
+
+    # Extract UV coordinates (normalized [0, 1])
+    if pc.shape[1] >= 8:
+        u_norm = pc[:, 6]  # normalized u
+        v_norm = pc[:, 7]  # normalized v
+    else:
+        # Fallback: if no UV, use simple method
+        u_norm = np.zeros(pc.shape[0], dtype=np.float32)
+        v_norm = np.zeros(pc.shape[0], dtype=np.float32)
+
+    # Convert normalized UV to pixel coordinates
+    u_pix = np.clip((u_norm * W).round().astype(int), 0, W - 1)
+    v_pix = np.clip((v_norm * H).round().astype(int), 0, H - 1)
+
+    # Get segmentation IDs at point locations
+    seg_ids = seg_data[v_pix, u_pix, 1]  # objid
+
+    # For adroit tasks, we want to segment the target object
+    # Target objects typically have specific objid values
+    # For simplicity, we'll consider non-zero objid as target objects
+    mask_hit = seg_ids > 0
+
+    # Initialize attention field
+    attn = np.zeros((n_channels, n_points), dtype=np.float32)
+
+    # Channel 0: Binary mask hit (1 if target object, 0 otherwise)
+    attn[0] = mask_hit.astype(np.float32)
+
+    # Channel 1: Distance-based attention (closer to center = higher weight)
+    # Use normalized x coordinate as proxy for distance
+    x_center = xyz[:, 0].mean()
+    x_dist = np.abs(xyz[:, 0] - x_center)
+    x_dist_norm = x_dist / (x_dist.max() + 1e-6)
+    attn[1] = (1.0 - x_dist_norm) * mask_hit.astype(np.float32)  # Only for points in mask
+
+    # Channel 2: Inverse distance (for obstacle/background attention)
+    attn[2] = (1.0 - mask_hit.astype(np.float32))  # Points NOT in mask
+
+    return attn
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--input_zarr", required=True, help="data/adroit_door_expert.zarr")
-    ap.add_argument("--json_root", required=True, help="export_gs2/adroit_door")
+    ap.add_argument("--json_root", required=True, help="export_gs2/adroit_door (only used when not using env seg)")
     ap.add_argument("--output_zarr", required=True, help="data/adroit_door_expert_attn3d.zarr")
     ap.add_argument("--n_points", type=int, default=512)
     ap.add_argument("--n_channels", type=int, default=3)
     ap.add_argument("--max_episodes", type=int, default=None, help="limit episodes for quick test")
+    ap.add_argument("--use_env_seg", action="store_true", help="use environment segmentation instead of GS2")
     args = ap.parse_args()
 
     # 读原始 zarr
+    keys = ["state", "action", "point_cloud", "img"]
+    if args.use_env_seg:
+        keys.append("segmentation")
     rb = ReplayBuffer.copy_from_path(
         args.input_zarr,
-        keys=["state", "action", "point_cloud", "img"],
+        keys=keys,
     )
     n_eps = rb.n_episodes if args.max_episodes is None else min(args.max_episodes, rb.n_episodes)
 
@@ -172,15 +233,22 @@ def main():
 
         # 为每帧生成 attn_3d
         for t in range(T):
-            json_path = os.path.join(args.json_root, f"ep_{ep_idx:04d}", f"frame_{t:04d}.json")
-            mask_json = None
-            if os.path.exists(json_path):
-                try:
-                    mask_json = load_json(json_path)
-                except Exception as e:
-                    print(f"[warn] fail to load {json_path}: {e}")
-            attn = build_attn_from_mask(pc[t], mask_json, img_res=imgs[t].shape[:2],
-                                        n_points=args.n_points, n_channels=args.n_channels)
+            if args.use_env_seg:
+                # 使用环境分割数据
+                seg_data = ep["segmentation"][t]  # (H, W, 2)
+                attn = build_attn_from_env_seg(pc[t], seg_data,
+                                             n_points=args.n_points, n_channels=args.n_channels)
+            else:
+                # 使用GS2 JSON数据
+                json_path = os.path.join(args.json_root, f"ep_{ep_idx:04d}", f"frame_{t:04d}.json")
+                mask_json = None
+                if os.path.exists(json_path):
+                    try:
+                        mask_json = load_json(json_path)
+                    except Exception as e:
+                        print(f"[warn] fail to load {json_path}: {e}")
+                attn = build_attn_from_mask(pc[t], mask_json, img_res=imgs[t].shape[:2],
+                                            n_points=args.n_points, n_channels=args.n_channels)
             data_g["attn_3d"][step_cursor + t] = attn
         step_cursor += T
         print(f"[done] ep {ep_idx}, attn_3d filled.")
