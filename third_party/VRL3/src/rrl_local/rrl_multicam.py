@@ -125,9 +125,10 @@ class BasicAdroitEnv(gym.Env): # , ABC
 
                     # Render segmentation mask if requested
                     if render_segmentation:
-                        seg_img, _ = self._env.env.sim.render(width=self.width, height=self.height, mode='offscreen',
-                                                            camera_name=cam, device_id=0, segmentation=True)
-                        seg_img = seg_img[::-1, :, :]  # Image given has to be flipped
+                        # mujoco's render(..., segmentation=True) returns a (H, W, 2) array
+                        seg_img = self._env.env.sim.render(width=self.width, height=self.height, mode='offscreen',
+                                                           camera_name=cam, device_id=0, segmentation=True)
+                        seg_img = seg_img[::-1, :, :]  # flip vertically to match image orientation
                         if self.channels_first:
                             seg_img = seg_img.transpose((2, 0, 1))
                         segs.append(seg_img)

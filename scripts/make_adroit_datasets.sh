@@ -27,7 +27,7 @@ TASKS="${TASKS:-door hammer pen}"
 GS2_DIR="${GS2_DIR:-${ROOT}/Grounded-SAM-2}"
 # 修改处：设置默认 conda 环境为 aedp3_vis
 GS2_CONDA_ENV="${GS2_CONDA_ENV:-aedp3_vis}"
-SEG_TYPES="${SEG_TYPES:-gs2 env}"
+SEG_TYPES="${SEG_TYPES:-env gs2}"
 
 log() { echo -e "[make_adroit] $*"; }
 
