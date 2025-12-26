@@ -256,7 +256,7 @@ class MetaworldRunner(BaseRunner):
             except Exception:
                 pass
 
-    def run(self, policy: BasePolicy, save_video=False):
+    def run(self, policy: BasePolicy, save_video=True):
         device = policy.device
         dtype = policy.dtype
 

@@ -21,15 +21,15 @@ EXTRA_ARGS="${EXTRA_ARGS:-}"
 
 TASKS=(
   metaworld_pick-place_no_attn
-  metaworld_pick-place
-  metaworld_hammer_no_attn
-  metaworld_hammer
-  metaworld_window-open_no_attn
-  metaworld_window-open
-  metaworld_window-close_no_attn
-  metaworld_window-close
   metaworld_sweep_no_attn
+  metaworld_shelf-place_no_attn
+  metaworld_soccer_no_attn
+  metaworld_stick-pull_no_attn
+  metaworld_pick-place
   metaworld_sweep
+  metaworld_shelf-place
+  metaworld_soccer
+  metaworld_stick-pull
 )
 
 log() { echo -e "[run_all_metaworld] $*"; }
