@@ -47,10 +47,10 @@ class ExtendedTimeStepAdroit(NamedTuple):
     discount: Any
     observation: Any
     observation_sensor: Any
-    observation_segmentation: Any = None
     action: Any
     n_goal_achieved: Any
     time_limit_reached: Any
+    observation_segmentation: Any = None
 
     def first(self):
         return self.step_type == StepType.FIRST
