@@ -96,6 +96,7 @@ class ExtendedTimeStepAdroit(NamedTuple):
     action: Any
     n_goal_achieved: Any
     time_limit_reached: Any
+    observation_segmentation: Any = None
     
 
     def first(self):
