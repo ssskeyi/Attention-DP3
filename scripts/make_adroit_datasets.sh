@@ -62,7 +62,7 @@ gs2_for_task() {
   case "${task}" in
     door)   text_prompt="door handle. door." ;;
     hammer) text_prompt="hammer. nail." ;;
-    pen)    text_prompt="blue pen." ;;
+    pen)    text_prompt="blue pen in hand." ;;
     *)      text_prompt="${task}" ;;
   esac
   log "运行 GS2: ${task} -> ${output_root}"

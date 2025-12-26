@@ -111,7 +111,7 @@ class AdroitRunner(BaseRunner):
         prompts = {
             'door': 'door handle. door.',
             'hammer': 'hammer. handle.',
-            "pen": "blue pen.",
+            "pen": "blue pen in hand.",
             # Add more task prompts as needed
         }
         return prompts.get(task_name, 'object.')  # Default fallback

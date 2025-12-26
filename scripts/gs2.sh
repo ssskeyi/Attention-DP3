@@ -53,8 +53,10 @@ python batch_grounded_sam2.py \
   --text "${TEXT_PROMPT}" \
   --sam2_ckpt checkpoints/sam2.1_hiera_large.pt \
   --sam2_cfg configs/sam2.1/sam2.1_hiera_l.yaml \
-  --gdino_cfg grounding_dino/groundingdino/config/GroundingDINO_SwinT_OGC.py \
-  --gdino_ckpt gdino_checkpoints/groundingdino_swint_ogc.pth \
-  --device "${DEVICE}"
+  --gdino_cfg grounding_dino/groundingdino/config/GroundingDINO_SwinB_cfg.py \
+  --gdino_ckpt gdino_checkpoints/groundingdino_swinb_cogcoor.pth \
+  --device "${DEVICE}" \
+  --box_thr 0.25 \
+  --text_thr 0.15
 
 echo "[gs2.sh] Finished!"
