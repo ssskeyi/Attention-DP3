@@ -23,6 +23,7 @@ def parse_args():
     parser.add_argument('--env_name', type=str, default='door', help='environment to run')
     parser.add_argument('--num_episodes', type=int, default=100, help='number of episodes to run')
     parser.add_argument('--root_dir', type=str, default='data', help='directory to save data')
+    parser.add_argument('--save_name', type=str, default=None, help='custom save name for zarr file')
     parser.add_argument('--expert_ckpt_path', type=str, default=None, help='path to expert ckpt')
     parser.add_argument('--img_size', type=int, default=84, help='image size')
     parser.add_argument('--not_use_multi_view', action='store_true', help='not use multi view')
@@ -53,7 +54,10 @@ def main():
         env = MujocoPointcloudWrapperAdroit(env=env, env_name='adroit_'+args.env_name, use_point_crop=args.use_point_crop)
         return env
     num_episodes = args.num_episodes
-    save_dir = os.path.join(args.root_dir, 'adroit_'+args.env_name+'_expert.zarr')
+    if args.save_name:
+        save_dir = os.path.join(args.root_dir, args.save_name)
+    else:
+        save_dir = os.path.join(args.root_dir, 'adroit_'+args.env_name+'_expert.zarr')
     if os.path.exists(save_dir):
         cprint('Data already exists at {}'.format(save_dir), 'red')
         cprint("If you want to overwrite, delete the existing directory first.", "red")

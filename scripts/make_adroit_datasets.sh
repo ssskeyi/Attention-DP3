@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 一键生成 Adroit (pen/hammer/door) 的无 attn + 有 attn 数据。
+# 一键生成 Adroit (pen/hammer/door) 的无 attn + 有 attn 数据，支持GS2和环境分割。
 # 依赖：
 #   - third_party/VRL3/src/gen_demonstration_expert.py （生成专家演示）
 #   - scripts/export_adroit_frames.py （导出帧）
@@ -16,7 +16,7 @@ set -euo pipefail
 #   N_POINTS (默认 512)       : attn_3d 采样点数
 #   TASKS (默认 "door hammer pen")
 #   GS2_CONDA_ENV (默认 aedp3_vis): 指定运行 gs2.sh 时的 conda 环境
-#   USE_ENV_SEG (默认 false)  : 是否使用环境直接提供的分割掩码，而不是GS2
+#   SEG_TYPES (默认 "gs2 env"): 分割类型，可选 "gs2" "env" 或两者
 
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
 GPU="${GPU:-0}"
@@ -27,21 +27,29 @@ TASKS="${TASKS:-door hammer pen}"
 GS2_DIR="${GS2_DIR:-${ROOT}/Grounded-SAM-2}"
 # 修改处：设置默认 conda 环境为 aedp3_vis
 GS2_CONDA_ENV="${GS2_CONDA_ENV:-aedp3_vis}"
-USE_ENV_SEG="${USE_ENV_SEG:-false}"
+SEG_TYPES="${SEG_TYPES:-gs2 env}"
 
 log() { echo -e "[make_adroit] $*"; }
 
 gen_demo() {
   local task="$1"
-  log "生成演示: ${task} (USE_ENV_SEG=${USE_ENV_SEG})"
+  local seg_type="$2"
+  local output_dir="../../../3D-Diffusion-Policy/data/"
+  local save_name="adroit_${task}_expert_${seg_type}.zarr"
+
+  log "生成演示: ${task} (seg_type=${seg_type}) -> ${save_name}"
+
   pushd "${ROOT}/third_party/VRL3/src" >/dev/null
   local use_env_seg_flag=""
-  if [ "${USE_ENV_SEG}" = "true" ]; then
+  if [ "${seg_type}" = "env" ]; then
     use_env_seg_flag="--use_env_seg"
   fi
+
+  # 修改保存路径
   CUDA_VISIBLE_DEVICES="${GPU}" python gen_demonstration_expert.py --env_name "${task}" \
     --num_episodes "${MAX_EP}" \
-    --root_dir "../../../3D-Diffusion-Policy/data/" \
+    --root_dir "${output_dir}" \
+    --save_name "${save_name}" \
     --expert_ckpt_path "../ckpts/vrl3_${task}.pt" \
     --img_size 84 \
     --not_use_multi_view \
@@ -52,9 +60,10 @@ gen_demo() {
 
 export_frames() {
   local task="$1"
-  local zarr="${ROOT}/3D-Diffusion-Policy/data/adroit_${task}_expert.zarr"
-  local out_dir="${ROOT}/3D-Diffusion-Policy/export/adroit_${task}_frames"
-  log "导出帧: ${task} -> ${out_dir}"
+  local seg_type="$2"
+  local zarr="${ROOT}/3D-Diffusion-Policy/data/adroit_${task}_expert_${seg_type}.zarr"
+  local out_dir="${ROOT}/3D-Diffusion-Policy/export/adroit_${task}_${seg_type}_frames"
+  log "导出帧: ${task} (${seg_type}) -> ${out_dir}"
   python "${ROOT}/scripts/export_adroit_frames.py" \
     --zarr "${zarr}" \
     --out_dir "${out_dir}" \
@@ -63,8 +72,14 @@ export_frames() {
 
 gs2_for_task() {
   local task="$1"
-  local frames_root="${ROOT}/3D-Diffusion-Policy/export/adroit_${task}_frames"
-  local output_root="${ROOT}/3D-Diffusion-Policy/export_gs2/adroit_${task}"
+  local seg_type="$2"
+  # 只有GS2分割类型才需要运行GS2
+  if [ "${seg_type}" != "gs2" ]; then
+    return
+  fi
+
+  local frames_root="${ROOT}/3D-Diffusion-Policy/export/adroit_${task}_${seg_type}_frames"
+  local output_root="${ROOT}/3D-Diffusion-Policy/export_gs2/adroit_${task}_${seg_type}"
   local text_prompt
   case "${task}" in
     door)   text_prompt="door handle. door." ;;
@@ -72,7 +87,7 @@ gs2_for_task() {
     pen)    text_prompt="blue pen in hand." ;;
     *)      text_prompt="${task}" ;;
   esac
-  log "运行 GS2: ${task} -> ${output_root}"
+  log "运行 GS2: ${task} (${seg_type}) -> ${output_root}"
   local runner=()
   # 因为上面设置了默认值，只要不显式传空值，这里都会进入 conda run 逻辑
   if [[ -n "${GS2_CONDA_ENV:-}" ]]; then
@@ -87,12 +102,13 @@ gs2_for_task() {
 
 convert_attn_zarr() {
   local task="$1"
-  local input_zarr="${ROOT}/3D-Diffusion-Policy/data/adroit_${task}_expert.zarr"
-  local json_root="${ROOT}/3D-Diffusion-Policy/export_gs2/adroit_${task}"
-  local output_zarr="${ROOT}/3D-Diffusion-Policy/data/adroit_${task}_expert_attn3d.zarr"
-  log "生成 attn_3d zarr: ${task} -> ${output_zarr}"
+  local seg_type="$2"
+  local input_zarr="${ROOT}/3D-Diffusion-Policy/data/adroit_${task}_expert_${seg_type}.zarr"
+  local json_root="${ROOT}/3D-Diffusion-Policy/export_gs2/adroit_${task}_${seg_type}"
+  local output_zarr="${ROOT}/3D-Diffusion-Policy/data/adroit_${task}_expert_${seg_type}_attn3d.zarr"
+  log "生成 attn_3d zarr: ${task} (${seg_type}) -> ${output_zarr}"
   local use_env_seg_flag=""
-  if [ "${USE_ENV_SEG}" = "true" ]; then
+  if [ "${seg_type}" = "env" ]; then
     use_env_seg_flag="--use_env_seg"
   fi
   python "${ROOT}/scripts/convert_zarr_with_attn3d.py" \
@@ -107,21 +123,26 @@ convert_attn_zarr() {
 main() {
   log "ROOT=${ROOT}"
   log "TASKS=${TASKS}"
+  log "SEG_TYPES=${SEG_TYPES}"
   log "GPU=${GPU}, DEVICE=${DEVICE}, MAX_EP=${MAX_EP}, N_POINTS=${N_POINTS}"
   log "GS2_DIR=${GS2_DIR}"
   log "GS2_CONDA_ENV=${GS2_CONDA_ENV}"
-  log "USE_ENV_SEG=${USE_ENV_SEG}"
-  for task in ${TASKS}; do
-    gen_demo "${task}"
-    if [ "${USE_ENV_SEG}" = "true" ]; then
-      # 使用环境分割，直接转换zarr
-      convert_attn_zarr "${task}"
-    else
-      # 使用GS2流程
-      export_frames "${task}"
-      gs2_for_task "${task}"
-      convert_attn_zarr "${task}"
-    fi
+
+  for seg_type in ${SEG_TYPES}; do
+    log "开始处理分割类型: ${seg_type}"
+    for task in ${TASKS}; do
+      gen_demo "${task}" "${seg_type}"
+      if [ "${seg_type}" = "env" ]; then
+        # 使用环境分割，直接转换zarr
+        convert_attn_zarr "${task}" "${seg_type}"
+      else
+        # 使用GS2流程
+        export_frames "${task}" "${seg_type}"
+        gs2_for_task "${task}" "${seg_type}"
+        convert_attn_zarr "${task}" "${seg_type}"
+      fi
+    done
+    log "完成分割类型: ${seg_type}"
   done
   log "全部完成"
 }

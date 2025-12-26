@@ -12,11 +12,13 @@ set -euo pipefail
 #   SEED=0                  训练种子
 #   CONFIG_NAME=dp3         Hydra 配置名
 #   EXTRA_ARGS=""           额外透传给 train.py（如 training.debug=true）
+#   DATASET_TYPE=standard   数据集类型: standard(标准), gs2, env
 
 DEBUG=False
 save_ckpt=True
 # 运行名前缀，可用于区分 wandb run；默认用 exp_name
 RUN_NAME_PREFIX="${RUN_NAME_PREFIX:-}"
+DATASET_TYPE="${DATASET_TYPE:-standard}"
 
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
 GPU_ID="${GPU_ID:-0}"
@@ -68,7 +70,15 @@ for task in "${TASKS[@]}"; do
     run_name="${exp_name}"
   fi
   
-  log "开始训练: ${task} (exp_name=${exp_name}, gpu_id=${GPU_ID}, seed=${SEED}, addition_info=${addition_info})"
+  # 设置数据集路径
+  dataset_args=""
+  if [ "${DATASET_TYPE}" = "gs2" ]; then
+    dataset_args="training.dataset_path=data/adroit_${task}_expert_gs2_attn3d.zarr"
+  elif [ "${DATASET_TYPE}" = "env" ]; then
+    dataset_args="training.dataset_path=data/adroit_${task}_expert_env_attn3d.zarr"
+  fi
+
+  log "开始训练: ${task} (exp_name=${exp_name}, gpu_id=${GPU_ID}, seed=${SEED}, addition_info=${addition_info}, dataset_type=${DATASET_TYPE})"
   python train.py --config-name=${CONFIG_NAME}.yaml \
                             task=${task} \
                             hydra.run.dir=${run_dir} \
@@ -80,6 +90,7 @@ for task in "${TASKS[@]}"; do
                             logging.name=${run_name} \
                             logging.project=aedp3_adroit_cmp_1226_main \
                             checkpoint.save_ckpt=${save_ckpt} \
+                            ${dataset_args} \
                             ${EXTRA_ARGS}
   task_end=$(date +%s)
   log "完成训练: ${task} 用时 $((task_end - task_start)) 秒"
