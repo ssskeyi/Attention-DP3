@@ -25,11 +25,19 @@ TASKS=(
   metaworld_shelf-place_no_attn
   metaworld_soccer_no_attn
   metaworld_stick-pull_no_attn
+  metaworld_box-close_no_attn
+  metaworld_bin-picking_no_attn
+  metaworld_disassemble_no_attn
+  metaworld_reach_no_attn
   metaworld_pick-place
   metaworld_sweep
   metaworld_shelf-place
   metaworld_soccer
   metaworld_stick-pull
+  metaworld_box-close
+  metaworld_bin-picking
+  metaworld_disassemble
+  metaworld_reach
 )
 
 log() { echo -e "[run_all_metaworld] $*"; }

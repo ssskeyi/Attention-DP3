@@ -1,4 +1,4 @@
-name: box-close
+name: bin-picking
 
 task_name: ${name}
 
@@ -10,9 +10,6 @@ shape_meta: &shape_meta
     agent_pos:
       shape: [9]
       type: low_dim
-    attn_3d:
-      shape: [3, 512]
-      type: spatial
   action:
     shape: [4]
 
@@ -31,11 +28,11 @@ env_runner:
 
 dataset:
   _target_: diffusion_policy_3d.dataset.metaworld_dataset.MetaworldDataset
-  zarr_path: data/metaworld_box-close_expert_attn3d.zarr
-  use_attn_3d: true
+  zarr_path: data/metaworld_bin-picking_expert.zarr
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
   seed: 42
   val_ratio: 0.02
   max_train_episodes: 90
+  use_attn_3d: false

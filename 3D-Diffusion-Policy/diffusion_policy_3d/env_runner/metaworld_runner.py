@@ -100,7 +100,11 @@ class MetaworldRunner(BaseRunner):
             'sweep-into': 'red robotic arm. a little brown rectangular prism.',
             'window-close': 'red robotic arm. window.',
             'window-open': 'red robotic arm. window.',
-            'hammer': 'red robotic arm. a hammer with a gray head and a red handle.'
+            'hammer': 'red robotic arm. a hammer with a gray head and a red handle.',
+            'box-close': 'red robotic arm. box.',
+            'bin-picking': 'red robotic arm. bin.',
+            'disassemble': 'red robotic arm. disassemble.',
+            'reach': 'red robotic arm.'
         }
         return prompts.get(task_name, 'object.')  # Default fallback
 

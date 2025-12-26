@@ -18,7 +18,7 @@ ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
 DEVICE="${DEVICE:-cuda}"
 MAX_EP="${MAX_EP:-10}"
 N_POINTS="${N_POINTS:-512}"
-TASKS="${TASKS:-hammer pick-place window-open window-close sweep sweep-into stick-push stick-pull soccer shelf-place}"
+TASKS="${TASKS:-hammer pick-place window-open window-close sweep sweep-into stick-push stick-pull soccer shelf-place box-close bin-picking disassemble reach}"
 GS2_DIR="${GS2_DIR:-${ROOT}/Grounded-SAM-2}"
 GS2_CONDA_ENV="${GS2_CONDA_ENV:-aedp3_vis}"
 
@@ -58,6 +58,10 @@ gs2_for_task() {
       stick-pull|stick-push) echo "red robotic arm. blue stick. gray thermos." ;;
       sweep|sweep-into) echo "red robotic arm. a little brown rectangular prism." ;;
       window-close|window-open) echo "red robotic arm. window." ;;
+      box-close) echo "red robotic arm. box." ;;
+      bin-picking) echo "red robotic arm. bin." ;;
+      disassemble) echo "red robotic arm. disassemble." ;;
+      reach) echo "red robotic arm." ;;
       *) echo "${t}" ;; # fallback: pass through
     esac
   }
