@@ -61,6 +61,35 @@ def main():
 
     env = make_env(args.env, use_point_crop=True, render_seg=True, device=args.device)
 
+    # helper to get action_space robustly from nested wrappers
+    def get_action_space(environment):
+        # try common attributes and nesting orders
+        try:
+            if hasattr(environment, "action_space"):
+                return environment.action_space
+        except Exception:
+            pass
+        try:
+            env0 = getattr(environment, "env", None)
+            if env0 is not None and hasattr(env0, "action_space"):
+                return env0.action_space
+        except Exception:
+            pass
+        try:
+            env0 = getattr(environment, "_env", None)
+            if env0 is not None and hasattr(env0, "action_space"):
+                return env0.action_space
+        except Exception:
+            pass
+        # deeper nesting
+        try:
+            env0 = getattr(getattr(environment, "env", None), "_env", None)
+            if env0 is not None and hasattr(env0, "action_space"):
+                return env0.action_space
+        except Exception:
+            pass
+        return None
+
     # Reset
     reset_res = env.reset()
     # reset_res may be a NamedTuple with observation_segmentation or tuple
@@ -70,12 +99,32 @@ def main():
     save_seg(seg, os.path.join(out_dir, "reset"), 0)
 
     # Step some frames
+    action_space = get_action_space(env)
+    if action_space is None:
+        print("Warning: cannot find action_space on env; steps will use zero actions if possible.")
     for t in range(1, args.steps + 1):
-        try:
-            act = env.action_space.sample()
-        except Exception:
-            # fallback: zero action
-            act = np.zeros(env.action_space.shape, dtype=np.float32)
+        if action_space is not None:
+            try:
+                act = action_space.sample()
+            except Exception:
+                # fallback zero action if shape available
+                try:
+                    act = np.zeros(action_space.shape, dtype=np.float32)
+                except Exception:
+                    act = None
+        else:
+            act = None
+        if act is None:
+            # try env.step with zero vector if possible
+            try:
+                # attempt to create zero action from nested action_space attributes
+                aspace = get_action_space(env)
+                if aspace is not None and hasattr(aspace, "shape"):
+                    act = np.zeros(aspace.shape, dtype=np.float32)
+                else:
+                    raise RuntimeError("No usable action_space found to create zero action.")
+            except Exception as e:
+                raise RuntimeError(f"Cannot obtain action for env.step(): {e}")
         res = env.step(act)
         seg = getattr(res, "observation_segmentation", None)
         if seg is None and isinstance(res, (list, tuple)) and len(res) >= 3:
