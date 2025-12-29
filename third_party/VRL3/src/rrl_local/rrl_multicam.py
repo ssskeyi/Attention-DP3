@@ -272,10 +272,18 @@ class BasicAdroitEnv(gym.Env): # , ABC
                 break
         env_info['n_goal_achieved'] = n_goal_achieved
         # now get stacked frames
-        pixels, sensor_info = self.get_obs()
+        obs_result = self.get_obs(render_segmentation=self.render_segmentation)
+        if self.render_segmentation:
+            pixels, sensor_info, segmentations = obs_result
+        else:
+            pixels, sensor_info = obs_result
+            segmentations = None
         self._frames.append(pixels)
         stacked_pixels = self.get_stacked_pixels()
-        return [stacked_pixels, sensor_info], reward_sum, done, env_info
+        if self.render_segmentation:
+            return (stacked_pixels, sensor_info, segmentations), reward_sum, done, env_info
+        else:
+            return (stacked_pixels, sensor_info), reward_sum, done, env_info
 
     def set_env_state(self, state):
         return self._env.set_env_state(state)

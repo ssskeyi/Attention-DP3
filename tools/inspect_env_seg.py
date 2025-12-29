@@ -126,9 +126,8 @@ def main():
             except Exception as e:
                 raise RuntimeError(f"Cannot obtain action for env.step(): {e}")
         res = env.step(act)
+        # prefer attribute access; do NOT index NamedTuple (NamedTuple may override __getitem__)
         seg = getattr(res, "observation_segmentation", None)
-        if seg is None and isinstance(res, (list, tuple)) and len(res) >= 3:
-            seg = res[2]
         save_seg(seg, os.path.join(out_dir, "step"), t)
 
     print("Saved segmentation images to", out_dir)
