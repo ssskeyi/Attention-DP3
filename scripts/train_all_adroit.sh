@@ -73,9 +73,9 @@ for task in "${TASKS[@]}"; do
   # 设置数据集路径
   dataset_args=""
   if [ "${DATASET_TYPE}" = "gs2" ]; then
-    dataset_args="training.dataset_path=data/adroit_${task}_expert_gs2_attn3d.zarr"
+    dataset_args="+training.dataset_path=data/adroit_${task}_expert_gs2_attn3d.zarr"
   elif [ "${DATASET_TYPE}" = "env" ]; then
-    dataset_args="training.dataset_path=data/adroit_${task}_expert_env_attn3d.zarr"
+    dataset_args="+training.dataset_path=data/adroit_${task}_expert_env_attn3d.zarr"
   fi
 
   log "开始训练: ${task} (exp_name=${exp_name}, gpu_id=${GPU_ID}, seed=${SEED}, addition_info=${addition_info}, dataset_type=${DATASET_TYPE})"
