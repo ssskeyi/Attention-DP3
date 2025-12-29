@@ -93,7 +93,8 @@ for task in "${TASKS[@]}"; do
     fi
   fi
   if [[ -n "${dataset_path:-}" ]]; then
-    dataset_args="+task.dataset.zarr_path=${dataset_path}"
+    # override existing key task.dataset.zarr_path in Hydra config
+    dataset_args="task.dataset.zarr_path=${dataset_path}"
   fi
 
   log "开始训练: ${task} (exp_name=${exp_name}, gpu_id=${GPU_ID}, seed=${SEED}, addition_info=${addition_info}, dataset_type=${DATASET_TYPE})"
