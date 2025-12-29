@@ -70,12 +70,30 @@ for task in "${TASKS[@]}"; do
     run_name="${exp_name}"
   fi
   
-  # 设置数据集路径
+  # 设置数据集路径（根据 task 名计算 base 名称，并区分是否为 no_attn）
   dataset_args=""
+  # strip leading 'adroit_' if present
+  base="${task#adroit_}"
+  is_no_attn=false
+  if [[ "${base}" == *"_no_attn" ]]; then
+    is_no_attn=true
+    base="${base%_no_attn}"
+  fi
   if [ "${DATASET_TYPE}" = "gs2" ]; then
-    dataset_args="+training.dataset_path=data/adroit_${task}_expert_gs2_attn3d.zarr"
+    if [ "${is_no_attn}" = "true" ]; then
+      dataset_path="data/adroit_${base}_expert_gs2.zarr"
+    else
+      dataset_path="data/adroit_${base}_expert_gs2_attn3d.zarr"
+    fi
   elif [ "${DATASET_TYPE}" = "env" ]; then
-    dataset_args="+training.dataset_path=data/adroit_${task}_expert_env_attn3d.zarr"
+    if [ "${is_no_attn}" = "true" ]; then
+      dataset_path="data/adroit_${base}_expert_env.zarr"
+    else
+      dataset_path="data/adroit_${base}_expert_env_attn3d.zarr"
+    fi
+  fi
+  if [[ -n "${dataset_path:-}" ]]; then
+    dataset_args="+task.dataset.zarr_path=${dataset_path}"
   fi
 
   log "开始训练: ${task} (exp_name=${exp_name}, gpu_id=${GPU_ID}, seed=${SEED}, addition_info=${addition_info}, dataset_type=${DATASET_TYPE})"
