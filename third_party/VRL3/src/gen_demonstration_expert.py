@@ -87,6 +87,8 @@ def main():
     state_arrays = []
     action_arrays = []
     episode_ends_arrays = []
+    # logging counters for segmentation
+    seg_counters = {"total_frames": 0, "seg_present": 0, "seg_normalized": 0, "seg_skipped": 0}
     
 
     # loop over episodes
@@ -134,7 +136,45 @@ def main():
                 point_cloud_arrays_sub.append(time_step.observation_pointcloud)
                 depth_arrays_sub.append(time_step.observation_depth)
                 if args.use_env_seg:
-                    segmentation_arrays_sub.append(time_step.observation_segmentation)
+                    # normalize/check segmentation before appending
+                    obs_seg = time_step.observation_segmentation
+                    seg_counters["total_frames"] += 1
+                    def normalize_seg_for_append(seg, H, W):
+                        if seg is None:
+                            return None
+                        try:
+                            seg = np.array(seg)
+                        except Exception:
+                            return None
+                        # If multi-camera or shape variants, try to normalize to (H,W,2)
+                        if seg.ndim == 4 and seg.shape[0] > 1 and seg.shape[3] == 2:
+                            seg = seg[0]
+                        if seg.ndim == 3 and seg.shape[0] == 2 and seg.shape[2] != 2:
+                            seg = seg.transpose((1,2,0))
+                        if seg.ndim == 2:
+                            seg = np.stack([np.zeros_like(seg), seg], axis=2)
+                        if seg.ndim == 4 and seg.shape[0] == 1 and seg.shape[3] == 2:
+                            seg = seg[0]
+                        if not (seg.ndim == 3 and seg.shape[2] == 2):
+                            return None
+                        # resize if needed
+                        if (seg.shape[0], seg.shape[1]) != (H, W):
+                            try:
+                                ch0 = Image.fromarray(seg[...,0].astype(np.uint8)).resize((W, H), resample=Image.NEAREST)
+                                ch1 = Image.fromarray(seg[...,1].astype(np.uint8)).resize((W, H), resample=Image.NEAREST)
+                                seg = np.stack([np.array(ch0, dtype=np.int32), np.array(ch1, dtype=np.int32)], axis=2)
+                            except Exception:
+                                return None
+                        return seg.astype(np.int32)
+
+                    seg_ok = normalize_seg_for_append(obs_seg, args.img_size, args.img_size)
+                    if seg_ok is None:
+                        seg_counters["seg_skipped"] += 1
+                        segmentation_arrays_sub.append(None)
+                    else:
+                        seg_counters["seg_present"] += 1
+                        seg_counters["seg_normalized"] += 1
+                        segmentation_arrays_sub.append(seg_ok)
                 
             time_step = env.step(action)
             obs = time_step.observation # np array, (3,84,84)
@@ -201,7 +241,15 @@ def main():
     cprint(f'point_cloud shape: {point_cloud_arrays.shape}, range: [{np.min(point_cloud_arrays)}, {np.max(point_cloud_arrays)}]', 'green')
     cprint(f'depth shape: {depth_arrays.shape}, range: [{np.min(depth_arrays)}, {np.max(depth_arrays)}]', 'green')
     if args.use_env_seg:
-        cprint(f'segmentation shape: {segmentation_arrays.shape}, range: [{np.min(segmentation_arrays)}, {np.max(segmentation_arrays)}]', 'green')
+        # filter out None entries
+        seg_valid = [s for s in segmentation_arrays if s is not None]
+        if len(seg_valid) == 0:
+            cprint(f'No valid segmentation frames found; segmentation dataset will not be written.', 'yellow')
+            segmentation_arrays = None
+        else:
+            segmentation_arrays = np.stack(seg_valid, axis=0)
+            cprint(f'segmentation shape: {segmentation_arrays.shape}, range: [{np.min(segmentation_arrays)}, {np.max(segmentation_arrays)}]', 'green')
+        cprint(f'Segmentation counters: {seg_counters}', 'green')
     cprint(f'state shape: {state_arrays.shape}, range: [{np.min(state_arrays)}, {np.max(state_arrays)}]', 'green')
     cprint(f'action shape: {action_arrays.shape}, range: [{np.min(action_arrays)}, {np.max(action_arrays)}]', 'green')
     cprint(f'Saved zarr file to {save_dir}', 'green')

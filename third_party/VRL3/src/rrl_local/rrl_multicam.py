@@ -125,12 +125,12 @@ class BasicAdroitEnv(gym.Env): # , ABC
 
                     # Render segmentation mask if requested
                     if render_segmentation:
-                        # mujoco's render(..., segmentation=True) returns a (H, W, 2) array
+                        # mujoco's render(..., segmentation=True) returns a segmentation array
                         seg_img = self._env.env.sim.render(width=self.width, height=self.height, mode='offscreen',
                                                            camera_name=cam, device_id=0, segmentation=True)
-                        seg_img = seg_img[::-1, :, :]  # flip vertically to match image orientation
-                        if self.channels_first:
-                            seg_img = seg_img.transpose((2, 0, 1))
+                        # normalize orientation
+                        seg_img = seg_img[::-1, :, :]
+                        # seg_img may have different layouts; append raw for now and normalize below
                         segs.append(seg_img)
             else:
                 img = (np.random.rand(1, 84, 84) * 255).astype(np.uint8)
@@ -140,7 +140,56 @@ class BasicAdroitEnv(gym.Env): # , ABC
                     segs.append(seg)
             pixels = np.concatenate(imgs, axis=0)
             if render_segmentation:
-                segmentations = np.concatenate(segs, axis=0)
+                # Normalize segmentation collected from cameras -> single (H, W, 2) or None
+                def normalize_seg(raw_seg, target_h, target_w):
+                    try:
+                        seg = np.array(raw_seg)
+                    except Exception:
+                        return None
+                    # If segmentation is None-like
+                    if seg is None:
+                        return None
+                    # Possible shapes:
+                    # (H, W, 2) -> ideal
+                    # (2, H, W) -> channels-first
+                    # (num_cams, H, W, 2) -> multi-camera
+                    # (H, W) -> single-channel ids
+                    # (1, H, W, 2) -> single camera wrapped
+                    # Normalize multi-camera: pick first camera
+                    if seg.ndim == 4 and seg.shape[0] > 1 and seg.shape[3] == 2:
+                        seg = seg[0]
+                    # Channels-first (2, H, W) -> transpose
+                    if seg.ndim == 3 and seg.shape[0] == 2 and seg.shape[2] != 2:
+                        seg = seg.transpose((1, 2, 0))
+                    # If single-channel (H, W), promote to (H, W, 1) then pad a zero channel
+                    if seg.ndim == 2:
+                        seg = np.stack([np.zeros_like(seg), seg], axis=2)
+                    # If shape is (1, H, W, 2) -> squeeze
+                    if seg.ndim == 4 and seg.shape[0] == 1 and seg.shape[3] == 2:
+                        seg = seg[0]
+                    # Now expect (H, W, 2)
+                    if not (seg.ndim == 3 and seg.shape[2] == 2):
+                        return None
+                    # Resize channels individually if needed
+                    H_src, W_src = seg.shape[0], seg.shape[1]
+                    if (H_src, W_src) != (target_h, target_w):
+                        try:
+                            ch0 = Image.fromarray(seg[..., 0].astype(np.uint8)).resize((target_w, target_h), resample=Image.NEAREST)
+                            ch1 = Image.fromarray(seg[..., 1].astype(np.uint8)).resize((target_w, target_h), resample=Image.NEAREST)
+                            seg_resized = np.stack([np.array(ch0, dtype=np.int32), np.array(ch1, dtype=np.int32)], axis=2)
+                            return seg_resized.astype(np.int32)
+                        except Exception:
+                            return None
+                    return seg.astype(np.int32)
+
+                # prefer primary camera (cameras[0]) segmentation
+                seg_norm = None
+                if len(segs) >= 1:
+                    seg_norm = normalize_seg(segs[0], self.height, self.width)
+                if seg_norm is None:
+                    segmentations = None
+                else:
+                    segmentations = seg_norm
             else:
                 segmentations = None
 
