@@ -62,12 +62,13 @@ for task in "${TASKS[@]}"; do
   
   # exp_name 格式与 train_policy.sh 保持一致：${task}-${alg_name}-${addition_info}
   exp_name="${task}-${CONFIG_NAME}-${addition_info}"
-  run_dir="data/outputs/${exp_name}_seed${SEED}"
-  # wandb run name：默认为 exp_name，若设置 RUN_NAME_PREFIX 则用 "${RUN_NAME_PREFIX}_${exp_name}"
+  # run_dir 也加上 RUN_NAME_PREFIX，避免不同前缀实验覆盖
   if [[ -n "${RUN_NAME_PREFIX}" ]]; then
     run_name="${RUN_NAME_PREFIX}_${exp_name}"
+    run_dir="data/outputs/${RUN_NAME_PREFIX}_${exp_name}_seed${SEED}"
   else
     run_name="${exp_name}"
+    run_dir="data/outputs/${exp_name}_seed${SEED}"
   fi
   
   # 设置数据集路径（根据 task 名计算 base 名称，并区分是否为 no_attn）

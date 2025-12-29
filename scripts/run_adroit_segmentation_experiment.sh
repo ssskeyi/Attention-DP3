@@ -66,6 +66,7 @@ training_phase() {
 
         # attn 实验
         log "运行 ${seg_type} attn 实验"
+        export DATASET_TYPE="${seg_type}"
         export RUN_NAME_PREFIX="${seg_type}_attn"
         export GPU_ID="${GPU_ID}"
         export SEED="${SEED}"
