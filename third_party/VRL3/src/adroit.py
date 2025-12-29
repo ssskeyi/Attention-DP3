@@ -344,7 +344,18 @@ class AdroitEnv:
 
     def step(self, action, force_step_type=None, debug=False):
         obs_all, reward, done, env_info = self._env.step(action)
-        obs_pixels, obs_sensor = obs_all
+        # obs_all may be (pixels, sensor) or (pixels, sensor, segmentation) or a NamedTuple-like
+        obs_segmentation = None
+        if isinstance(obs_all, (tuple, list)):
+            if len(obs_all) == 3:
+                obs_pixels, obs_sensor, obs_segmentation = obs_all
+            else:
+                obs_pixels, obs_sensor = obs_all[:2]
+        else:
+            # attempt attribute access
+            obs_pixels = getattr(obs_all, "observation", None)
+            obs_sensor = getattr(obs_all, "observation_sensor", None)
+            obs_segmentation = getattr(obs_all, "observation_segmentation", None)
         obs_sensor = obs_sensor.astype(np.float32)
 
         discount = 1.0
@@ -370,6 +381,7 @@ class AdroitEnv:
 
         time_step = ExtendedTimeStepAdroit(observation=obs_pixels,
                                      observation_sensor=obs_sensor,
+                                     observation_segmentation=obs_segmentation,
                                 step_type=steptype,
                                 action=action,
                                 reward=reward,
