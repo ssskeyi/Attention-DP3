@@ -165,6 +165,14 @@ def main():
                                 seg = np.stack([np.array(ch0, dtype=np.int32), np.array(ch1, dtype=np.int32)], axis=2)
                             except Exception:
                                 return None
+                        # Normalize orientation: ensure segmentation has same vertical orientation
+                        # as the rendered RGB images (images are flipped vertically when captured
+                        # via Mujoco wrappers). Flip segmentation vertically so that saved seg
+                        # aligns with image frames and with GS2 output orientation.
+                        try:
+                            seg = seg[::-1, :, :]
+                        except Exception:
+                            pass
                         return seg.astype(np.int32)
 
                     seg_ok = normalize_seg_for_append(obs_seg, args.img_size, args.img_size)
