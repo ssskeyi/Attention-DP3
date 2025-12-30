@@ -61,6 +61,7 @@ training_phase() {
         export GPU_ID="${GPU_ID}"
         export SEED="${SEED}"
         export CONFIG_NAME="${CONFIG_NAME}"
+        export ATTN_MODE="no_attn"
 
         bash "${ROOT}/scripts/train_all_adroit.sh"
 
@@ -71,6 +72,7 @@ training_phase() {
         export GPU_ID="${GPU_ID}"
         export SEED="${SEED}"
         export CONFIG_NAME="${CONFIG_NAME}"
+        export ATTN_MODE="attn"
 
         bash "${ROOT}/scripts/train_all_adroit.sh"
     done

@@ -19,6 +19,7 @@ save_ckpt=True
 # 运行名前缀，可用于区分 wandb run；默认用 exp_name
 RUN_NAME_PREFIX="${RUN_NAME_PREFIX:-}"
 DATASET_TYPE="${DATASET_TYPE:-standard}"
+ATTN_MODE="${ATTN_MODE:-all}"
 
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
 GPU_ID="${GPU_ID:-0}"
@@ -26,14 +27,30 @@ SEED="${SEED:-0}"
 CONFIG_NAME="${CONFIG_NAME:-dp3}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
 
-TASKS=(
-  adroit_pen_no_attn
-  adroit_hammer_no_attn
-  adroit_door_no_attn
-  adroit_pen
-  adroit_hammer
-  adroit_door
-)
+# 根据 ATTN_MODE 决定运行哪些任务
+if [ "${ATTN_MODE}" = "no_attn" ]; then
+    TASKS=(
+      adroit_pen_no_attn
+      adroit_hammer_no_attn
+      adroit_door_no_attn
+    )
+elif [ "${ATTN_MODE}" = "attn" ]; then
+    TASKS=(
+      adroit_pen
+      adroit_hammer
+      adroit_door
+    )
+else
+    # 默认运行所有任务（向后兼容）
+    TASKS=(
+      adroit_pen_no_attn
+      adroit_hammer_no_attn
+      adroit_door_no_attn
+      adroit_pen
+      adroit_hammer
+      adroit_door
+    )
+fi
 
 log() { echo -e "[run_all_adroit] $*"; }
 
@@ -55,9 +72,9 @@ for task in "${TASKS[@]}"; do
   task_start=$(date +%s)
   # 根据任务名自动设置 addition_info：带 attn 用 1221aedp3，不带 attn 用 1221dp3
   if [[ "${task}" == *_no_attn ]]; then
-    addition_info="1226dp3"
+    addition_info="1230dp3"
   else
-    addition_info="1226aedp3"
+    addition_info="1230aedp3"
   fi
   
   # exp_name 格式与 train_policy.sh 保持一致：${task}-${alg_name}-${addition_info}
@@ -108,7 +125,7 @@ for task in "${TASKS[@]}"; do
                             exp_name=${exp_name} \
                             logging.mode=${wandb_mode} \
                             logging.name=${run_name} \
-                            logging.project=aedp3_adroit_cmp_1226_main \
+                            logging.project=aedp3_adroit_cmp_1230_main \
                             checkpoint.save_ckpt=${save_ckpt} \
                             ${dataset_args} \
                             ${EXTRA_ARGS}
