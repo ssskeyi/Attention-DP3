@@ -194,9 +194,13 @@ def main():
 
         # 选择要可视化的帧
         frames_to_vis = min(args.frames_per_ep, ep_length)
-        frame_indices = np.linspace(args.start_frame,
-                                   min(ep_length - 1, args.start_frame + args.frames_per_ep * 10),
-                                   frames_to_vis, dtype=int)
+        if frames_to_vis <= 0:
+            print(f"[warn] Episode {ep_idx} has no frames to visualize (length: {ep_length})")
+            continue
+
+        # 从episode中均匀选择帧
+        frame_indices = np.linspace(0, ep_length - 1, frames_to_vis, dtype=int)
+        print(f"[debug] Episode {ep_idx}: length={ep_length}, will visualize {frames_to_vis} frames: {frame_indices}")
 
         for local_frame_idx in frame_indices:
             global_frame_idx = ep_start + local_frame_idx

@@ -24,7 +24,7 @@ DATA_GPU="${DATA_GPU:-0}"
 SEED="${SEED:-0}"
 CONFIG_NAME="${CONFIG_NAME:-dp3}"
 TASKS="${TASKS:-door hammer pen}"
-SEG_TYPES="${SEG_TYPES:-gs2 env}"
+SEG_TYPES="${SEG_TYPES:-env gs2}"
 MAX_EP="${MAX_EP:-10}"
 SKIP_DATA_GEN="${SKIP_DATA_GEN:-false}"
 
