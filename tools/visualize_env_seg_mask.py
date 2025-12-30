@@ -124,22 +124,55 @@ def main():
 
     # 读取zarr文件
     print(f"Loading zarr: {args.zarr_path}")
-    store = zarr.DirectoryStore(args.zarr_path)
-    zarr_root = zarr.group(store=store)
+    if not os.path.exists(args.zarr_path):
+        print(f"[error] zarr文件不存在: {args.zarr_path}")
+        print("请先运行数据生成脚本:")
+        print(f"  SEG_TYPES='env' TASKS='{args.task}' bash scripts/make_adroit_datasets.sh")
+        return
+
+    try:
+        store = zarr.DirectoryStore(args.zarr_path)
+        zarr_root = zarr.group(store=store)
+    except Exception as e:
+        print(f"[error] 无法打开zarr文件: {e}")
+        return
+
+    # 检查zarr结构
+    print(f"Zarr root keys: {list(zarr_root.keys())}")
+
+    if "data" not in zarr_root:
+        print(f"[error] zarr文件没有'data'组. 可用组: {list(zarr_root.keys())}")
+        return
+
+    if "meta" not in zarr_root:
+        print(f"[error] zarr文件没有'meta'组. 可用组: {list(zarr_root.keys())}")
+        return
+
+    data_keys = list(zarr_root["data"].keys())
+    meta_keys = list(zarr_root["meta"].keys())
+    print(f"Data group keys: {data_keys}")
+    print(f"Meta group keys: {meta_keys}")
 
     # 检查是否包含segmentation数据
     if "segmentation" not in zarr_root["data"]:
-        print(f"[error] zarr文件不包含segmentation数据: {args.zarr_path}")
+        print(f"[error] zarr文件不包含segmentation数据")
+        print(f"可用数据字段: {data_keys}")
+        print("请确保使用 --use_env_seg 参数生成数据")
         return
 
     # 获取数据
-    imgs = zarr_root["data"]["img"][:]      # (N, H, W, 3)
-    segs = zarr_root["data"]["segmentation"][:]  # (N, H, W, 2)
-    episode_ends = zarr_root["meta"]["episode_ends"][:]
+    try:
+        imgs = zarr_root["data"]["img"][:]      # (N, H, W, 3)
+        segs = zarr_root["data"]["segmentation"][:]  # (N, H, W, 2)
+        episode_ends = zarr_root["meta"]["episode_ends"][:]
+    except Exception as e:
+        print(f"[error] 读取数据失败: {e}")
+        return
 
     print(f"Total frames: {len(imgs)}")
     print(f"Image shape: {imgs.shape}")
     print(f"Segmentation shape: {segs.shape}")
+    print(f"Episode ends: {len(episode_ends)} episodes")
 
     # 计算episode边界
     ep_starts = [0] + episode_ends[:-1].tolist()
@@ -182,8 +215,10 @@ def main():
             visualize_env_seg_frame(img, seg_data, global_frame_idx, output_path, args.task)
 
     print(f"\n可视化完成！结果保存在: {task_output_dir}")
-    print("\n每个图像包含三列："    print("1. 原始图像")
-    print("2. 对象ID mask (用颜色编码不同对象)"    print("3. 对象类型mask (二值化显示)")
+    print("\n每个图像包含三列：")
+    print("1. 原始图像")
+    print("2. 对象ID mask (用颜色编码不同对象)")
+    print("3. 对象类型mask (二值化显示)")
 
 
 if __name__ == "__main__":
