@@ -188,8 +188,8 @@ def main():
 
         print(f"\nProcessing episode {ep_idx} (frames {ep_start}:{ep_end})")
 
-        # 为每个episode创建子目录
-        ep_output_dir = os.path.join(task_output_dir, "03d")
+        # 为每个episode创建子目录（格式 ep_000）
+        ep_output_dir = os.path.join(task_output_dir, f"ep_{ep_idx:03d}")
         os.makedirs(ep_output_dir, exist_ok=True)
 
         # 选择要可视化的帧
@@ -212,8 +212,8 @@ def main():
             img = imgs[global_frame_idx]  # (H, W, 3)
             seg_data = segs[global_frame_idx]  # (H, W, 2)
 
-            # 输出路径
-            output_path = os.path.join(ep_output_dir, "06d")
+            # 输出路径（文件名格式 frame_000000.png）
+            output_path = os.path.join(ep_output_dir, f"frame_{global_frame_idx:06d}.png")
 
             # 可视化
             visualize_env_seg_frame(img, seg_data, global_frame_idx, output_path, args.task)
