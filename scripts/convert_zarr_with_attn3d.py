@@ -6,6 +6,7 @@ import zarr
 import numcodecs
 import pycocotools.mask as mask_util
 from diffusion_policy_3d.common.replay_buffer import ReplayBuffer, get_optimal_chunks
+import re
 
 def load_json(json_path):
     with open(json_path, "r") as f:
@@ -114,10 +115,18 @@ def build_attn_from_env_seg(point_cloud, seg_data, n_points=512, n_channels=3):
     # Get segmentation IDs at point locations
     seg_ids = seg_data[v_pix, u_pix, 1]  # objid
 
-    # For adroit tasks, we want to segment the target object
-    # Target objects typically have specific objid values
-    # For simplicity, we'll consider non-zero objid as target objects
-    mask_hit = seg_ids > 0
+    # For adroit tasks, we prefer to use a precomputed target geom id list (by body)
+    # If available, only those geom ids will be treated as targets. Otherwise,
+    # fall back to treating any non-zero objid as target.
+    global TARGET_GEOM_IDS  # may be set in main()
+    if 'TARGET_GEOM_IDS' in globals() and TARGET_GEOM_IDS:
+        # seg_ids correspond to geom ids (objid) from MuJoCo; keep only those in target list
+        try:
+            mask_hit = np.isin(seg_ids, np.array(TARGET_GEOM_IDS, dtype=seg_ids.dtype))
+        except Exception:
+            mask_hit = seg_ids > 0
+    else:
+        mask_hit = seg_ids > 0
 
     # Initialize attention field
     attn = np.zeros((n_channels, n_points), dtype=np.float32)
@@ -147,6 +156,26 @@ def main():
     ap.add_argument("--max_episodes", type=int, default=None, help="limit episodes for quick test")
     ap.add_argument("--use_env_seg", action="store_true", help="use environment segmentation instead of GS2")
     args = ap.parse_args()
+
+    # Try to infer task name from input_zarr filename and load corresponding targets if present
+    # Expected pattern: .../adroit_<task>_expert*.zarr
+    global TARGET_GEOM_IDS
+    TARGET_GEOM_IDS = None
+    try:
+        basename = os.path.basename(args.input_zarr)
+        m = re.search(r"adroit_(?P<task>[a-zA-Z0-9_]+)_expert", basename)
+        if m:
+            task_name = m.group("task")
+            targets_path = os.path.join("targets", f"{task_name}_geom_ids.json")
+            if os.path.exists(targets_path):
+                try:
+                    with open(targets_path, "r") as f:
+                        TARGET_GEOM_IDS = json.load(f)
+                    print(f"[info] Loaded target geom ids for task '{task_name}' from {targets_path} ({len(TARGET_GEOM_IDS)} ids)")
+                except Exception as e:
+                    print(f"[warn] Failed to load targets {targets_path}: {e}")
+    except Exception:
+        pass
 
     # 读原始 zarr
     keys = ["state", "action", "point_cloud", "img"]
