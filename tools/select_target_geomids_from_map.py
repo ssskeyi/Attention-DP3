@@ -69,7 +69,7 @@ def main():
     builtin = {
         "door": ["door", "frame", "latch", "forearm", "palm", "wrist", "ff", "mf", "rf", "th"],
         "hammer": ["object", "nail", "nail_board", "handle", "board", "forearm", "palm", "wrist", "ff", "mf", "rf", "th"],
-        "pen": ["pen", "target", "object", "forearm", "palm", "wrist", "ff", "mf", "rf", "th"]
+        "pen": ["pen", "target", "forearm", "palm", "wrist", "ff", "mf", "rf", "th"]
     }
 
     # Determine keywords: if key_arg matches a builtin task, use that set, otherwise parse comma list
