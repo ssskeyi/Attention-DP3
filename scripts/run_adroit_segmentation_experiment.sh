@@ -49,6 +49,30 @@ data_generation() {
     log "数据将保存到: ${DATA_OUTPUT_ROOT}"
 
     bash "${ROOT}/scripts/make_adroit_datasets.sh"
+
+    # 创建符号链接到标准位置，方便训练脚本访问
+    log "创建数据文件符号链接..."
+    cd "${ROOT}/3D-Diffusion-Policy/data"
+    for task in ${TASKS}; do
+        for seg_type in ${SEG_TYPES}; do
+            # 链接原始zarr文件（无attention）
+            src_file="${DATA_OUTPUT_ROOT}/adroit_${task}_expert_${seg_type}.zarr"
+            dst_file="adroit_${task}_expert_${seg_type}.zarr"
+            if [ -d "$src_file" ] && [ ! -L "$dst_file" ]; then
+                ln -sf "$src_file" "$dst_file"
+                log "创建链接: $dst_file -> $src_file"
+            fi
+
+            # 链接带attention的zarr文件
+            src_file_attn="${DATA_OUTPUT_ROOT}/adroit_${task}_expert_${seg_type}_attn3d.zarr"
+            dst_file_attn="adroit_${task}_expert_${seg_type}_attn3d.zarr"
+            if [ -d "$src_file_attn" ] && [ ! -L "$dst_file_attn" ]; then
+                ln -sf "$src_file_attn" "$dst_file_attn"
+                log "创建链接: $dst_file_attn -> $src_file_attn"
+            fi
+        done
+    done
+
     log "数据生成完成"
 }
 
