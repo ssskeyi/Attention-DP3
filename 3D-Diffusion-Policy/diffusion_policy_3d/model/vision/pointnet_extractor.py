@@ -121,7 +121,7 @@ class PointNetEncoderXYZ(nn.Module):
         """_summary_
 
         Args:
-            in_channels (int): feature size of input (3 or 6)
+            in_channels (int): feature size of input (3 for xyz, or 3+C for xyz+attention)
             input_transform (bool, optional): whether to use transformation for coordinates. Defaults to True.
             feature_transform (bool, optional): whether to use transformation for features. Defaults to True.
             is_seg (bool, optional): for segmentation or classification. Defaults to False.
@@ -130,8 +130,9 @@ class PointNetEncoderXYZ(nn.Module):
         block_channel = [64, 128, 256]
         cprint("[PointNetEncoderXYZ] use_layernorm: {}".format(use_layernorm), 'cyan')
         cprint("[PointNetEncoderXYZ] use_final_norm: {}".format(final_norm), 'cyan')
-        
-        assert in_channels == 3, cprint(f"PointNetEncoderXYZ only supports 3 channels, but got {in_channels}", "red")
+        cprint("[PointNetEncoderXYZ] in_channels: {}".format(in_channels), 'cyan')
+
+        # Remove the assertion that only allows 3 channels - now supports xyz + attention concatenation
        
         self.mlp = nn.Sequential(
             nn.Linear(in_channels, block_channel[0]),
@@ -285,19 +286,12 @@ class DP3Encoder(nn.Module):
                 attn_3d_channels, attn_3d_n_points = self.attn_3d_shape
             else:
                 raise ValueError(f"attn_3d shape should be [C, N], got {self.attn_3d_shape}")
-            
-            # Create attention field encoder
-            self.attn_3d_encoder = AttentionFieldEncoder(
-                in_channels=attn_3d_channels,
-                n_points=attn_3d_n_points,
-                out_dim=attn_3d_encoder_dim,
-            )
-            self.n_output_channels += attn_3d_encoder_dim
+
             cprint(f"[DP3Encoder] attn_3d shape: {self.attn_3d_shape}", "yellow")
-            cprint(f"[DP3Encoder] attn_3d encoder output dim: {attn_3d_encoder_dim}", "yellow")
+            cprint(f"[DP3Encoder] attention will be concatenated with xyz", "yellow")
         else:
             self.attn_3d_shape = None
-            self.attn_3d_encoder = None
+            attn_3d_channels = 0
         
         
         cprint(f"[DP3Encoder] point cloud shape: {self.point_cloud_shape}", "yellow")
@@ -314,11 +308,22 @@ class DP3Encoder(nn.Module):
             # Create a copy to avoid modifying the original config
             encoder_cfg = copy.copy(pointcloud_encoder_cfg)
             if use_pc_color:
-                encoder_cfg['in_channels'] = 6
-                self.extractor = PointNetEncoderXYZRGB(**encoder_cfg)
+                base_channels = 6  # xyz + rgb
             else:
-                encoder_cfg['in_channels'] = 3
+                base_channels = 3  # xyz only
+
+            # If using attn_3d, concatenate attention features with xyz
+            if self.use_attn_3d:
+                attn_3d_channels, _ = self.attn_3d_shape
+                encoder_cfg['in_channels'] = base_channels + attn_3d_channels
                 self.extractor = PointNetEncoderXYZ(**encoder_cfg)
+                cprint(f"[DP3Encoder] pointnet in_channels: {encoder_cfg['in_channels']} (xyz + attention)", "yellow")
+            else:
+                encoder_cfg['in_channels'] = base_channels
+                if use_pc_color:
+                    self.extractor = PointNetEncoderXYZRGB(**encoder_cfg)
+                else:
+                    self.extractor = PointNetEncoderXYZ(**encoder_cfg)
         else:
             raise NotImplementedError(f"pointnet_type: {pointnet_type}")
 
@@ -343,26 +348,29 @@ class DP3Encoder(nn.Module):
         if self.use_imagined_robot:
             img_points = observations[self.imagination_key][..., :points.shape[-1]] # align the last dim
             points = torch.concat([points, img_points], dim=1)
-        
-        # points = torch.transpose(points, 1, 2)   # B * 3 * N
-        # points: B * 3 * (N + sum(Ni))
-        pn_feat = self.extractor(points)    # B * out_channel
-            
-        state = observations[self.state_key]
-        state_feat = self.state_mlp(state)  # B * 64
-        
-        # Process 3D attention field if available
-        feat_list = [pn_feat, state_feat]
-        if self.use_attn_3d and self.attn_3d_encoder is not None and self.attn_3d_key in observations:
+
+        # If using attn_3d, concatenate attention features with xyz coordinates
+        if self.use_attn_3d and self.attn_3d_key in observations:
             attn_3d = observations[self.attn_3d_key]
             # attn_3d should be (B, C, N)
             if len(attn_3d.shape) == 3:
-                attn_feat = self.attn_3d_encoder(attn_3d)  # (B, attn_3d_encoder_dim)
-                feat_list.append(attn_feat)
+                B, C, N = attn_3d.shape
+                # Transpose attn_3d to (B, N, C) to match points shape (B, N, 3)
+                attn_3d_transposed = attn_3d.transpose(1, 2)  # (B, N, C)
+                # Concatenate xyz coordinates with attention features
+                points = torch.cat([points, attn_3d_transposed], dim=-1)  # (B, N, 3+C)
+                cprint(f"[DP3Encoder] concatenated xyz and attention: {points.shape}", "cyan")
             else:
                 raise ValueError(f"attn_3d shape should be (B, C, N), got {attn_3d.shape}")
-        
-        final_feat = torch.cat(feat_list, dim=-1)
+
+        # points: B * N * (3 + C_attn) or B * N * 3
+        pn_feat = self.extractor(points)    # B * out_channel
+
+        state = observations[self.state_key]
+        state_feat = self.state_mlp(state)  # B * 64
+
+        # Now only concatenate pointnet features and state features
+        final_feat = torch.cat([pn_feat, state_feat], dim=-1)
         return final_feat
 
 

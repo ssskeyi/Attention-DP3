@@ -45,7 +45,7 @@ data_generation() {
 
     # 为数据生成设置时间戳目录，方便并行运行多个实验
     DATA_TIMESTAMP="${DATA_TIMESTAMP:-$(date +%Y%m%d_%H%M%S)}"
-    export DATA_OUTPUT_ROOT="${DATA_OUTPUT_ROOT:-${ROOT}/3D-Diffusion-Policy/data_${DATA_TIMESTAMP}}"
+    export DATA_OUTPUT_ROOT="${DATA_OUTPUT_ROOT:-${ROOT}/3D-Diffusion-Policy/data/data_${DATA_TIMESTAMP}}"
     log "数据将保存到: ${DATA_OUTPUT_ROOT}"
 
     bash "${ROOT}/scripts/make_adroit_datasets.sh"
