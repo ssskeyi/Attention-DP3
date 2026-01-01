@@ -22,6 +22,7 @@ isaacgym/
 *.html
 nohup.out
 data/
+data_20260101_141437/
 export/
 export_gs2/
 export_gs2_v2/

@@ -19,12 +19,12 @@ set -euo pipefail
 #   SKIP_DATA_GEN=false     是否跳过数据生成阶段
 
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
-GPU_ID="${GPU_ID:-0}"
+GPU_ID="${GPU_ID:-1}"
 DATA_GPU="${DATA_GPU:-0}"
-SEED="${SEED:-0}"
+SEED="${SEED:-42}"
 CONFIG_NAME="${CONFIG_NAME:-dp3}"
 TASKS="${TASKS:-door hammer pen}"
-SEG_TYPES="${SEG_TYPES:-env gs2}"
+SEG_TYPES="${SEG_TYPES:-env}"
 MAX_EP="${MAX_EP:-10}"
 SKIP_DATA_GEN="${SKIP_DATA_GEN:-false}"
 
@@ -42,6 +42,11 @@ data_generation() {
         log "跳过数据生成阶段"
         return
     fi
+
+    # 为数据生成设置时间戳目录，方便并行运行多个实验
+    DATA_TIMESTAMP="${DATA_TIMESTAMP:-$(date +%Y%m%d_%H%M%S)}"
+    export DATA_OUTPUT_ROOT="${DATA_OUTPUT_ROOT:-${ROOT}/3D-Diffusion-Policy/data_${DATA_TIMESTAMP}}"
+    log "数据将保存到: ${DATA_OUTPUT_ROOT}"
 
     bash "${ROOT}/scripts/make_adroit_datasets.sh"
     log "数据生成完成"

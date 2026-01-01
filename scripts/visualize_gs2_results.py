@@ -95,17 +95,17 @@ def main():
     base = "/mnt/disk2/ycb/AEDP3/3D-Diffusion-Policy"
     parser.add_argument(
         "--frames_root",
-        default=f"{base}/export/adroit_door_frames",
+        default=f"{base}/export/adroit_hammer_gs2_frames",
         help="gs2.sh 的 $1，对应原始帧目录。",
     )
     parser.add_argument(
         "--gs2_root",
-        default=f"{base}/export_gs2/adroit_door",
+        default=f"{base}/export_gs2/adroit_hammer_gs2",
         help="gs2.sh 的 $2，对应 JSON 结果目录。",
     )
     parser.add_argument(
         "--output_root",
-        default=f"{base}/export_gs2_vis/adroit_door",
+        default=f"{base}/export_gs2_vis/adroit_hammer_gs2_vis",
         help="可视化结果输出目录。",
     )
     parser.add_argument("--score_thr", type=float, default=0.0, help="过滤低置信度结果的阈值。")

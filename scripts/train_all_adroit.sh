@@ -72,9 +72,9 @@ for task in "${TASKS[@]}"; do
   task_start=$(date +%s)
   # 根据任务名自动设置 addition_info：带 attn 用 1221aedp3，不带 attn 用 1221dp3
   if [[ "${task}" == *_no_attn ]]; then
-    addition_info="1230dp3"
+    addition_info="0101dp3"
   else
-    addition_info="1230aedp3"
+    addition_info="0101aedp3"
   fi
   
   # exp_name 格式与 train_policy.sh 保持一致：${task}-${alg_name}-${addition_info}
@@ -125,7 +125,7 @@ for task in "${TASKS[@]}"; do
                             exp_name=${exp_name} \
                             logging.mode=${wandb_mode} \
                             logging.name=${run_name} \
-                            logging.project=aedp3_adroit_cmp_1230_main \
+                            logging.project=aedp3_adroit_cmp_0101_gs2 \
                             checkpoint.save_ckpt=${save_ckpt} \
                             ${dataset_args} \
                             ${EXTRA_ARGS}

@@ -28,13 +28,15 @@ GS2_DIR="${GS2_DIR:-${ROOT}/Grounded-SAM-2}"
 # 修改处：设置默认 conda 环境为 aedp3_vis
 GS2_CONDA_ENV="${GS2_CONDA_ENV:-aedp3_vis}"
 SEG_TYPES="${SEG_TYPES:-env gs2}"
+DATA_OUTPUT_ROOT="${DATA_OUTPUT_ROOT:-}"
+DATA_ROOT="${DATA_OUTPUT_ROOT:-${ROOT}/3D-Diffusion_policy/data}"
 
 log() { echo -e "[make_adroit] $*"; }
 
 gen_demo() {
   local task="$1"
   local seg_type="$2"
-  local output_dir="../../../3D-Diffusion-Policy/data/"
+  local output_dir="${DATA_ROOT}/"
   local save_name="adroit_${task}_expert_${seg_type}.zarr"
 
   log "生成演示: ${task} (seg_type=${seg_type}) -> ${save_name}"
@@ -61,7 +63,7 @@ gen_demo() {
 export_frames() {
   local task="$1"
   local seg_type="$2"
-  local zarr="${ROOT}/3D-Diffusion-Policy/data/adroit_${task}_expert_${seg_type}.zarr"
+  local zarr="${DATA_ROOT}/adroit_${task}_expert_${seg_type}.zarr"
   local out_dir="${ROOT}/3D-Diffusion-Policy/export/adroit_${task}_${seg_type}_frames"
   log "导出帧: ${task} (${seg_type}) -> ${out_dir}"
   python "${ROOT}/scripts/export_adroit_frames.py" \
@@ -103,9 +105,9 @@ gs2_for_task() {
 convert_attn_zarr() {
   local task="$1"
   local seg_type="$2"
-  local input_zarr="${ROOT}/3D-Diffusion-Policy/data/adroit_${task}_expert_${seg_type}.zarr"
+  local input_zarr="${DATA_ROOT}/adroit_${task}_expert_${seg_type}.zarr"
   local json_root="${ROOT}/3D-Diffusion-Policy/export_gs2/adroit_${task}_${seg_type}"
-  local output_zarr="${ROOT}/3D-Diffusion-Policy/data/adroit_${task}_expert_${seg_type}_attn3d.zarr"
+  local output_zarr="${DATA_ROOT}/adroit_${task}_expert_${seg_type}_attn3d.zarr"
   log "生成 attn_3d zarr: ${task} (${seg_type}) -> ${output_zarr}"
   local use_env_seg_flag=""
   if [ "${seg_type}" = "env" ]; then

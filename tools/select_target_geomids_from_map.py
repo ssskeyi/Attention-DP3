@@ -20,13 +20,7 @@ def load_map(path):
         return json.load(f)
 
 def select_by_keywords(map_list, keywords):
-    """
-    Select geom_ids by keywords.
 
-    mode: 'body' => match keywords only against body_name
-          'geom' => match keywords only against geom_name
-          'both' => match either (legacy behavior)
-    """
     kws = [k.strip().lower() for k in keywords if k.strip()]
     mode = None
     # allow passing mode as last element of keywords list like ['door','mode=both']
@@ -67,9 +61,9 @@ def main():
     # Built-in keyword sets for common tasks (matching only against body_name)
     # add hand-related body keywords into each task's builtin set
     builtin = {
-        "door": ["door", "frame", "latch", "forearm", "palm", "wrist", "ff", "mf", "rf", "th"],
-        "hammer": ["object", "nail", "nail_board", "handle", "board", "forearm", "palm", "wrist", "ff", "mf", "rf", "th"],
-        "pen": ["pen", "target", "forearm", "palm", "wrist", "ff", "mf", "rf", "th"]
+        "door": ["door", "frame", "latch"],
+        "hammer": ["object", "nail", "nail_board", "handle", "board"],
+        "pen": ["object"]
     }
 
     # Determine keywords: if key_arg matches a builtin task, use that set, otherwise parse comma list
