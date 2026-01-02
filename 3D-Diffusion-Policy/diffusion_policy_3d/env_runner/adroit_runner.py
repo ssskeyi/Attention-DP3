@@ -56,11 +56,14 @@ class AdroitRunner(BaseRunner):
         self.target_geom_ids = None
         if seg_type == 'env' and task_name:
             try:
-                targets_path = os.path.join("targets", f"{task_name}_geom_ids.json")
+                # Use absolute path to targets directory
+                targets_path = f"/mnt/disk2/ycb/AEDP3/targets/{task_name}_geom_ids.json"
+                # attempted targets_path (absolute) is used silently
+
                 if os.path.exists(targets_path):
                     with open(targets_path, "r") as f:
                         self.target_geom_ids = json.load(f)
-                    cprint(f"[info] Loaded target geom ids for task '{task_name}' from {targets_path} ({len(self.target_geom_ids)} ids)", "cyan")
+                    cprint(f"[info] Loaded target geom ids for task '{task_name}' from {targets_path} ({len(self.target_geom_ids)} ids): {self.target_geom_ids}", "cyan")
                 else:
                     cprint(f"[warn] Target geom ids file not found: {targets_path}, will use fallback segmentation", "yellow")
             except Exception as e:
@@ -306,6 +309,8 @@ class AdroitRunner(BaseRunner):
             if pc_sampled.shape[1] >= 8:
                 u_norm = pc_sampled[:, 6]  # normalized u
                 v_norm = pc_sampled[:, 7]  # normalized v
+
+                # UV coordinate ranges checked during development; suppressed in production
             else:
                 # Fallback: if no UV, use simple method
                 u_norm = np.zeros(pc_sampled.shape[0], dtype=np.float32)
@@ -325,10 +330,15 @@ class AdroitRunner(BaseRunner):
                 # seg_ids correspond to geom ids (objid) from MuJoCo; keep only those in target list
                 try:
                     mask_hit = np.isin(seg_ids, np.array(self.target_geom_ids, dtype=seg_ids.dtype))
+
+                    # Matching and mask statistics computed during development; suppressed in production
+
                 except Exception:
                     mask_hit = seg_ids > 0
+                    # Exception in mask computation handled by fallback; suppressed debug message
             else:
                 mask_hit = seg_ids > 0
+                # No target_geom_ids: using all non-zero segmentation IDs (no debug print)
 
             # Initialize attention field for this timestep
             attn = np.zeros((n_channels, n_points), dtype=np.float32)
@@ -634,15 +644,13 @@ class AdroitRunner(BaseRunner):
                         needs_attn_3d = True
                     
                     if needs_attn_3d:
-                        cprint(f"[AdroitRunner] Policy needs attn_3d, checking if environment provides it", "cyan")
                         # Only generate attn_3d if policy requires it
                         # Check if environment provides attn_3d
                         if 'attn_3d' in obs_dict:
                             # Environment provides attn_3d, use it
-                            cprint(f"[AdroitRunner] Environment provides attn_3d, using it directly", "green")
                             obs_dict_input['attn_3d'] = obs_dict['attn_3d'].unsqueeze(0)
                         else:
-                            cprint(f"[AdroitRunner] Environment does not provide attn_3d, generating during inference", "yellow")
+                            # Generate attn_3d during inference
                             # Generate attn_3d during inference using Grounded-SAM-2
                             # Get RGB image by rendering from environment
                             # Navigate through wrapper chain to get to AdroitEnv
@@ -689,26 +697,41 @@ class AdroitRunner(BaseRunner):
                             seg_data = None
                             if self.seg_type == 'env':
                                 # Get segmentation data from observation
-                                cprint(f"[AdroitRunner] Checking for segmentation data in np_obs_dict keys: {list(np_obs_dict.keys())}", "cyan")
                                 seg_data = np_obs_dict.get('segmentation')
-                                if seg_data is not None:
-                                    cprint(f"[AdroitRunner] Found segmentation data in observation, shape: {seg_data.shape}", "green")
-                                else:
+                                if seg_data is None:
                                     cprint(f"[warn] seg_type='env' but no segmentation data in observation, using GS2 fallback", "yellow")
                                     self.seg_type = 'gs2'  # Temporarily fall back to GS2
+                                else:
+                                    # Mirror/flip segmentation vertically to match training data orientation
+                                    # Training pipeline saved segmentation with a vertical flip (seg = seg[::-1, :, :]).
+                                    try:
+                                        if isinstance(seg_data, np.ndarray):
+                                            if seg_data.ndim == 4:
+                                                # (T, H, W, C)
+                                                seg_data = seg_data[:, ::-1, :, :]
+                                            elif seg_data.ndim == 3:
+                                                # (H, W, C)
+                                                seg_data = seg_data[::-1, :, :]
+                                            # put back into np_obs_dict for consistency downstream
+                                            np_obs_dict['segmentation'] = seg_data
+                                    except Exception as e:
+                                        cprint(f"[warn] Failed to flip segmentation for orientation: {e}", "yellow")
 
                             # Generate attn_3d
                             if rgb_img is not None and point_cloud_full is not None:
                                 # Check if we can use environment segmentation
                                 if self.seg_type == 'env' and seg_data is not None:
                                     # Use environment segmentation data - process all timesteps at once
-                                    cprint(f"[AdroitRunner] Using environment segmentation for attn_3d generation", "green")
+                                    # Using environment segmentation (processed)
                                     attn_3d = self._build_attn_from_env_seg(
                                         point_cloud_full, seg_data, n_points=512, n_channels=3
                                     )
+
+                                    # Check if attention is all zeros (keep warning)
+                                    if attn_3d.sum() == 0:
+                                        cprint(f"[warn] Attention mask is all zeros! seg_data shape: {seg_data.shape}, pc shape: {point_cloud_full.shape}", "red")
                                 else:
                                     # Generate attn_3d for each timestep using Grounded-SAM-2
-                                    cprint(f"[AdroitRunner] Using Grounded-SAM-2 for attn_3d generation", "yellow")
                                     T = point_cloud_full.shape[0]
                                     attn_3d_list = []
                                     for t in range(T):

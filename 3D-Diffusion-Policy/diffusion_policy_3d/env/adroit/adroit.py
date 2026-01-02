@@ -376,12 +376,6 @@ class AdroitEnv:
             obs_sensor = np.zeros(self.obs_sensor_dim, dtype=np.float32)
             obs_segmentation = None
 
-        # Debug segmentation data availability
-        if self.render_segmentation:
-            if obs_segmentation is not None:
-                print(f"[AdroitEnv] Segmentation data available: {obs_segmentation.shape}")
-            else:
-                print("[AdroitEnv] Segmentation data is None despite render_segmentation=True")
 
         obs_sensor = obs_sensor.astype(np.float32)
         action_spec = self.action_spec()
@@ -389,16 +383,12 @@ class AdroitEnv:
 
         # Ensure obs_pixels is always a numpy array
         if not isinstance(obs_pixels, np.ndarray):
-            print(f"[AdroitEnv] Converting obs_pixels from {type(obs_pixels)} to numpy array")
             if isinstance(obs_pixels, list):
                 try:
                     obs_pixels = np.array(obs_pixels)
-                    print(f"[AdroitEnv] Successfully converted list to array, shape: {obs_pixels.shape}")
                 except Exception as e:
-                    print(f"[AdroitEnv] Failed to convert obs_pixels list to array: {e}")
                     obs_pixels = np.zeros((3, 84, 84), dtype=np.uint8)
             else:
-                print(f"[AdroitEnv] obs_pixels type {type(obs_pixels)} is not ndarray, using zeros")
                 obs_pixels = np.zeros((3, 84, 84), dtype=np.uint8)
 
         # Ensure correct data types
@@ -413,9 +403,6 @@ class AdroitEnv:
         }
         if self.render_segmentation and obs_segmentation is not None:
             obs_dict['segmentation'] = obs_segmentation
-            print(f"[AdroitEnv] Including segmentation data in obs_dict: {obs_segmentation.shape}")
-        elif self.render_segmentation:
-            print("[AdroitEnv] render_segmentation=True but obs_segmentation is None")
         return obs_dict
 
     def get_current_obs_without_reset(self):
@@ -481,12 +468,6 @@ class AdroitEnv:
             # Fallback
             raise ValueError(f"Unexpected step result format: {type(step_result)}")
 
-        # Debug segmentation data availability
-        if self.render_segmentation:
-            if obs_segmentation is not None:
-                print(f"[AdroitEnv] Segmentation data available: {obs_segmentation.shape}")
-            else:
-                print("[AdroitEnv] Segmentation data is None despite render_segmentation=True")
 
         obs_sensor = obs_sensor.astype(np.float32)
 
@@ -509,9 +490,6 @@ class AdroitEnv:
         }
         if self.render_segmentation and obs_segmentation is not None:
             obs_dict['segmentation'] = obs_segmentation
-            print(f"[AdroitEnv] Step including segmentation data in obs_dict: {obs_segmentation.shape}")
-        elif self.render_segmentation:
-            print("[AdroitEnv] Step render_segmentation=True but obs_segmentation is None")
 
         return obs_dict, reward, done, env_info
 

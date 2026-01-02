@@ -78,7 +78,6 @@ class BasicAdroitEnv(gym.Env): # , ABC
 
     def get_obs(self, render_segmentation=False):
         # for our case, let's output the image, and then also the sensor features
-        print(f"[BasicAdroitEnv] get_obs called with render_segmentation={render_segmentation}")
         if self.env_id in _mj_envs :
             env_state = self._env.env.get_env_state()
             qp = env_state['qpos']
@@ -133,14 +132,13 @@ class BasicAdroitEnv(gym.Env): # , ABC
                             if hasattr(model, 'camera_name2id'):
                                 try:
                                     cam_id = model.camera_name2id(cam)
-                                    print(f"[Adroit-Basic] Found camera {cam} at ID {cam_id}")
+                                    pass
                                 except:
-                                    print(f"[Adroit-Basic] Camera {cam} not found, using ID 0")
+                                    pass
 
                             if cam_id is not None:
                                 seg_img = self._env.env.sim.render(width=self.width, height=self.height, mode='offscreen',
                                                                    camera_name=cam, segmentation=True)
-                                print(f"[Adroit-Basic] Segmentation render successful for camera {cam} (id={cam_id}): shape {seg_img.shape}")
                                 seg_img = seg_img[::-1, :, :]
                                 # Convert (H, W) to (H, W, 2) format
                                 if seg_img.ndim == 2:
@@ -149,11 +147,9 @@ class BasicAdroitEnv(gym.Env): # , ABC
                                 else:
                                     segs.append(seg_img.astype(np.int32))
                             else:
-                                print(f"[Adroit-Basic] Camera {cam} not found")
                                 dummy_seg = np.zeros((self.height, self.width, 2), dtype=np.int32)
                                 segs.append(dummy_seg)
                         except Exception as e:
-                            print(f"[Adroit-Basic] Segmentation render failed for camera {cam}: {e}")
                             dummy_seg = np.zeros((self.height, self.width, 2), dtype=np.int32)
                             segs.append(dummy_seg)
             else:
@@ -187,7 +183,6 @@ class BasicAdroitEnv(gym.Env): # , ABC
         if render_segmentation and segs:
             # Use the first camera's segmentation
             segmentations = segs[0]
-            print(f"[Adroit-Basic] Returning segmentation data: {segmentations.shape}")
 
         if render_segmentation:
             return pixels, sensor_info, segmentations
@@ -391,7 +386,6 @@ class BasicFrankaEnv(gym.Env):
 
     def get_obs(self, render_segmentation=False):
         # for our case, let's output the image, and then also the sensor features
-        print(f"[Adroit-Basic] get_obs called with render_segmentation={render_segmentation}")
         imgs = [] # number of image is number of camera
         segs = [] # segmentation masks for each camera
 
@@ -455,7 +449,6 @@ class BasicFrankaEnv(gym.Env):
         if render_segmentation and segs:
             # Use the first camera's segmentation
             segmentations = segs[0]
-            print(f"[Adroit-Basic] Returning segmentation data: {segmentations.shape}")
 
         if render_segmentation:
             return pixels, sensor_info, segmentations

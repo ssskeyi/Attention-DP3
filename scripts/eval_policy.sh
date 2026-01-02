@@ -1,8 +1,6 @@
 # use the same command as training except the script
 # for example:
-# bash scripts/eval_policy.sh dp3 adroit_hammer 0322 0 0
-
-
+# bash scripts/eval_policy.sh dp3 adroit_hammer 0322 0 0 [EXTRA_ARGS]
 
 DEBUG=False
 
@@ -15,6 +13,7 @@ exp_name=${task_name}-${alg_name}-${addition_info}
 run_dir="data/outputs/${exp_name}_seed${seed}"
 
 gpu_id=${5}
+extra_args=${6:-""}  # Optional extra arguments (e.g., "+task.env_runner.seg_type=gs2")
 
 
 cd 3D-Diffusion-Policy
@@ -29,7 +28,8 @@ python eval.py --config-name=${config_name}.yaml \
                             training.device="cuda:0" \
                             exp_name=${exp_name} \
                             logging.mode=${wandb_mode} \
-                            checkpoint.save_ckpt=${save_ckpt}
+                            checkpoint.save_ckpt=${save_ckpt} \
+                            ${extra_args}
 
 
 
