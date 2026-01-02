@@ -276,7 +276,8 @@ class AdroitEnv:
             # RRL class instance is environment wrapper...
             env = BasicAdroitEnv(env, cameras=cam_list,
                                  height=height, width=width, latent_dim=latent_dim, hybrid_state=True,
-                                 test_image=test_image, channels_first=True, num_repeats=num_repeats, num_frames=num_frames, device=device)
+                                 test_image=test_image, channels_first=True, num_repeats=num_repeats, num_frames=num_frames,
+                                 device=device, render_segmentation=render_segmentation)
         else:
             raise ValueError("env feature not supported")
 
@@ -337,18 +338,74 @@ class AdroitEnv:
                 dtype=np.float32
             )
 
+        if self.render_segmentation:
+            self.observation_space['segmentation'] = spaces.Box(
+                low=0,
+                high=np.iinfo(np.int32).max,
+                shape=(84, 84, 2),
+                dtype=np.int32
+            )
+
     def reset(self):
         # pixels and sensor values
         reset_result = self._env.reset()
-        if self.render_segmentation:
-            obs_pixels, obs_sensor, obs_segmentation = reset_result
+
+        # Handle different return formats
+        if hasattr(reset_result, 'observation'):
+            # ExtendedTimeStepAdroit format (VRL3)
+            obs_pixels = reset_result.observation
+            obs_sensor = reset_result.observation_sensor
+            obs_segmentation = getattr(reset_result, 'observation_segmentation', None)
+        elif isinstance(reset_result, (tuple, list)):
+            # BasicAdroitEnv format with potential segmentation
+            if self.render_segmentation and len(reset_result) == 3:
+                # (pixels, sensor_info, segmentations)
+                obs_pixels, obs_sensor, obs_segmentation = reset_result
+            elif len(reset_result) == 2:
+                # (pixels, sensor_info)
+                obs_pixels, obs_sensor = reset_result
+                obs_segmentation = None
+            else:
+                # Unexpected format
+                obs_pixels = np.zeros((3, 84, 84), dtype=np.uint8)
+                obs_sensor = np.zeros(self.obs_sensor_dim, dtype=np.float32)
+                obs_segmentation = None
         else:
-            obs_pixels, obs_sensor = reset_result
+            # Fallback
+            obs_pixels = reset_result
+            obs_sensor = np.zeros(self.obs_sensor_dim, dtype=np.float32)
             obs_segmentation = None
+
+        # Debug segmentation data availability
+        if self.render_segmentation:
+            if obs_segmentation is not None:
+                print(f"[AdroitEnv] Segmentation data available: {obs_segmentation.shape}")
+            else:
+                print("[AdroitEnv] Segmentation data is None despite render_segmentation=True")
 
         obs_sensor = obs_sensor.astype(np.float32)
         action_spec = self.action_spec()
         action = np.zeros(action_spec.shape, dtype=action_spec.dtype)
+
+        # Ensure obs_pixels is always a numpy array
+        if not isinstance(obs_pixels, np.ndarray):
+            print(f"[AdroitEnv] Converting obs_pixels from {type(obs_pixels)} to numpy array")
+            if isinstance(obs_pixels, list):
+                try:
+                    obs_pixels = np.array(obs_pixels)
+                    print(f"[AdroitEnv] Successfully converted list to array, shape: {obs_pixels.shape}")
+                except Exception as e:
+                    print(f"[AdroitEnv] Failed to convert obs_pixels list to array: {e}")
+                    obs_pixels = np.zeros((3, 84, 84), dtype=np.uint8)
+            else:
+                print(f"[AdroitEnv] obs_pixels type {type(obs_pixels)} is not ndarray, using zeros")
+                obs_pixels = np.zeros((3, 84, 84), dtype=np.uint8)
+
+        # Ensure correct data types
+        if not isinstance(obs_pixels, np.ndarray):
+            obs_pixels = np.array(obs_pixels)
+        if not isinstance(obs_sensor, np.ndarray):
+            obs_sensor = np.array(obs_sensor, dtype=np.float32)
 
         obs_dict = {
             'image': obs_pixels,
@@ -356,6 +413,9 @@ class AdroitEnv:
         }
         if self.render_segmentation and obs_segmentation is not None:
             obs_dict['segmentation'] = obs_segmentation
+            print(f"[AdroitEnv] Including segmentation data in obs_dict: {obs_segmentation.shape}")
+        elif self.render_segmentation:
+            print("[AdroitEnv] render_segmentation=True but obs_segmentation is None")
         return obs_dict
 
     def get_current_obs_without_reset(self):
@@ -380,14 +440,53 @@ class AdroitEnv:
 
     def step(self, action, force_step_type=None, debug=False):
 
-        obs_all, reward, done, env_info = self._env.step(action)
+        step_result = self._env.step(action)
 
-        # Handle segmentation data if available
-        if self.render_segmentation and isinstance(obs_all, (tuple, list)) and len(obs_all) == 3:
-            obs_pixels, obs_sensor, obs_segmentation = obs_all
+        # Handle different return formats
+        if hasattr(step_result, 'observation'):
+            # ExtendedTimeStepAdroit format (VRL3)
+            obs_pixels = step_result.observation
+            obs_sensor = step_result.observation_sensor
+            obs_segmentation = getattr(step_result, 'observation_segmentation', None)
+            reward = step_result.reward
+            done = step_result.step_type == StepType.LAST
+            env_info = {
+                'n_goal_achieved': getattr(step_result, 'n_goal_achieved', 0),
+                'TimeLimit.truncated': getattr(step_result, 'time_limit_reached', False)
+            }
+        elif isinstance(step_result, (tuple, list)) and len(step_result) >= 4:
+            # BasicAdroitEnv format: ((pixels, sensor_info, segmentations), reward, done, info) or ((pixels, sensor_info), reward, done, info)
+            obs_tuple = step_result[0]
+            reward = step_result[1]
+            done = step_result[2]
+            env_info = step_result[3] if len(step_result) > 3 else {}
+
+            if isinstance(obs_tuple, (tuple, list)):
+                if self.render_segmentation and len(obs_tuple) == 3:
+                    # (pixels, sensor_info, segmentations)
+                    obs_pixels, obs_sensor, obs_segmentation = obs_tuple
+                elif len(obs_tuple) == 2:
+                    # (pixels, sensor_info)
+                    obs_pixels, obs_sensor = obs_tuple
+                    obs_segmentation = None
+                else:
+                    obs_pixels = np.zeros((3, 84, 84), dtype=np.uint8)
+                    obs_sensor = np.zeros(self.obs_sensor_dim, dtype=np.float32)
+                    obs_segmentation = None
+            else:
+                obs_pixels = np.zeros((3, 84, 84), dtype=np.uint8)
+                obs_sensor = np.zeros(self.obs_sensor_dim, dtype=np.float32)
+                obs_segmentation = None
         else:
-            obs_pixels, obs_sensor = obs_all
-            obs_segmentation = None
+            # Fallback
+            raise ValueError(f"Unexpected step result format: {type(step_result)}")
+
+        # Debug segmentation data availability
+        if self.render_segmentation:
+            if obs_segmentation is not None:
+                print(f"[AdroitEnv] Segmentation data available: {obs_segmentation.shape}")
+            else:
+                print("[AdroitEnv] Segmentation data is None despite render_segmentation=True")
 
         obs_sensor = obs_sensor.astype(np.float32)
 
@@ -410,6 +509,9 @@ class AdroitEnv:
         }
         if self.render_segmentation and obs_segmentation is not None:
             obs_dict['segmentation'] = obs_segmentation
+            print(f"[AdroitEnv] Step including segmentation data in obs_dict: {obs_segmentation.shape}")
+        elif self.render_segmentation:
+            print("[AdroitEnv] Step render_segmentation=True but obs_segmentation is None")
 
         return obs_dict, reward, done, env_info
 

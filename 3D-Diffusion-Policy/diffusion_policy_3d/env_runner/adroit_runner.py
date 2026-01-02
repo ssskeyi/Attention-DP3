@@ -44,16 +44,36 @@ class AdroitRunner(BaseRunner):
                  tqdm_interval_sec=5.0,
                  task_name=None,
                  use_point_crop=True,
+                 seg_type='gs2',  # 'gs2' or 'env'
                  ):
         super().__init__(output_dir)
         self.task_name = task_name
+        self.seg_type = seg_type
+
+        cprint(f"[AdroitRunner] Initialized with seg_type='{seg_type}' for task '{task_name}'", "cyan")
+
+        # Load target geom ids for env-based segmentation
+        self.target_geom_ids = None
+        if seg_type == 'env' and task_name:
+            try:
+                targets_path = os.path.join("targets", f"{task_name}_geom_ids.json")
+                if os.path.exists(targets_path):
+                    with open(targets_path, "r") as f:
+                        self.target_geom_ids = json.load(f)
+                    cprint(f"[info] Loaded target geom ids for task '{task_name}' from {targets_path} ({len(self.target_geom_ids)} ids)", "cyan")
+                else:
+                    cprint(f"[warn] Target geom ids file not found: {targets_path}, will use fallback segmentation", "yellow")
+            except Exception as e:
+                cprint(f"[warn] Failed to load target geom ids: {e}, will use fallback segmentation", "yellow")
 
         steps_per_render = max(10 // fps, 1)
 
         def env_fn():
+            # Enable segmentation rendering if using env-based segmentation
+            render_segmentation = (seg_type == 'env')
             return MultiStepWrapper(
                 SimpleVideoRecordingWrapper(
-                    MujocoPointcloudWrapperAdroit(env=AdroitEnv(env_name=task_name, use_point_cloud=True),
+                    MujocoPointcloudWrapperAdroit(env=AdroitEnv(env_name=task_name, use_point_cloud=True, render_segmentation=render_segmentation),
                                                   env_name='adroit_'+task_name, use_point_crop=use_point_crop)),
                 n_obs_steps=n_obs_steps,
                 n_action_steps=n_action_steps,
@@ -256,26 +276,117 @@ class AdroitRunner(BaseRunner):
         # NOTE: Channel 3 (normalized x coordinate) removed — only channels 0-2 are kept.
         
         return attn
-    
-    def _generate_attn_3d_inference(self, rgb_img, point_cloud_with_uv, img_res=(84, 84)):
+
+
+    def _build_attn_from_env_seg(self, point_cloud, seg_data, n_points=512, n_channels=3):
         """
-        Generate attn_3d during inference by calling Grounded-SAM-2.
+        从环境直接提供的分割数据构建attention。
+        seg_data: (T, H, W, 2) - MuJoCo segmentation data over T timesteps, where each pixel contains [objtype, objid]
+        point_cloud: (T, N_pc, 8) xyzrgbuv，其中 uv 是归一化的 [0, 1]
+        """
+        T, H, W, _ = seg_data.shape
+        T_pc, N_pc, C_pc = point_cloud.shape
+
+        # Ensure T matches
+        assert T == T_pc, f"Time steps mismatch: seg_data has {T}, point_cloud has {T_pc}"
+
+        # Initialize attention field for all timesteps
+        attn_all = []
+
+        for t in range(T):
+            pc_t = point_cloud[t]  # (N_pc, 8)
+            seg_t = seg_data[t]    # (H, W, 2)
+
+            # Sample or pad point cloud using FPS (consistent with training)
+            pc_sampled = self._point_cloud_sampling(pc_t, n_points, method='fps')
+
+            xyz = pc_sampled[:, :3]
+
+            # Extract UV coordinates (normalized [0, 1])
+            if pc_sampled.shape[1] >= 8:
+                u_norm = pc_sampled[:, 6]  # normalized u
+                v_norm = pc_sampled[:, 7]  # normalized v
+            else:
+                # Fallback: if no UV, use simple method
+                u_norm = np.zeros(pc_sampled.shape[0], dtype=np.float32)
+                v_norm = np.zeros(pc_sampled.shape[0], dtype=np.float32)
+
+            # Convert normalized UV to pixel coordinates
+            u_pix = np.clip((u_norm * W).round().astype(int), 0, W - 1)
+            v_pix = np.clip((v_norm * H).round().astype(int), 0, H - 1)
+
+            # Get segmentation IDs at point locations
+            seg_ids = seg_t[v_pix, u_pix, 1]  # objid
+
+            # For adroit tasks, we prefer to use a precomputed target geom id list (by body)
+            # If available, only those geom ids will be treated as targets. Otherwise,
+            # fall back to treating any non-zero objid as target.
+            if self.target_geom_ids:
+                # seg_ids correspond to geom ids (objid) from MuJoCo; keep only those in target list
+                try:
+                    mask_hit = np.isin(seg_ids, np.array(self.target_geom_ids, dtype=seg_ids.dtype))
+                except Exception:
+                    mask_hit = seg_ids > 0
+            else:
+                mask_hit = seg_ids > 0
+
+            # Initialize attention field for this timestep
+            attn = np.zeros((n_channels, n_points), dtype=np.float32)
+
+            # Channel 0: Binary mask hit (1 if target object, 0 otherwise)
+            attn[0] = mask_hit.astype(np.float32)
+
+            # Channel 1: Distance-based attention (closer to center = higher weight)
+            # Use normalized x coordinate as proxy for distance
+            x_center = xyz[:, 0].mean()
+            x_dist = np.abs(xyz[:, 0] - x_center)
+            x_dist_norm = x_dist / (x_dist.max() + 1e-6)
+            attn[1] = (1.0 - x_dist_norm) * mask_hit.astype(np.float32)  # Only for points in mask
+
+            # Channel 2: Inverse mask (for background attention)
+            attn[2] = (1.0 - mask_hit.astype(np.float32))  # Points NOT in mask
+
+            attn_all.append(attn)
+
+        # Stack all timesteps: (T, n_channels, n_points)
+        return np.stack(attn_all, axis=0)
+
+    def _generate_attn_3d_inference(self, rgb_img, point_cloud_with_uv, img_res=(84, 84), seg_data=None):
+        """
+        Generate attn_3d during inference.
+        If seg_type='env', use environment segmentation data.
+        Otherwise, use Grounded-SAM-2.
         Uses API server if available, otherwise falls back to subprocess mode.
-        
+
         Args:
             rgb_img: (H, W, 3) uint8 RGB image
             point_cloud_with_uv: (N, 8) point cloud with UV coordinates (xyzrgbuv)
             img_res: (H, W) image resolution
-        
+            seg_data: (H, W, 2) environment segmentation data (only used when seg_type='env')
+
         Returns:
             attn_3d: (C, N) attention field
         """
-        # Try API server mode first if configured
-        if self.gs2_api_url and HAS_REQUESTS:
-            return self._generate_attn_3d_via_api(rgb_img, point_cloud_with_uv, img_res)
+        if self.seg_type == 'env':
+            # Use environment segmentation data
+            if seg_data is not None:
+                cprint(f"[AdroitRunner] Using environment segmentation for inference", "green")
+                return self._build_attn_from_env_seg(point_cloud_with_uv, seg_data,
+                                                   n_points=512, n_channels=3)
+            else:
+                cprint(f"[warn] seg_type='env' but no segmentation data provided, using GS2 fallback", "yellow")
+                # Fall back to GS2
+                if self.gs2_api_url and HAS_REQUESTS:
+                    return self._generate_attn_3d_via_api(rgb_img, point_cloud_with_uv, img_res)
+                else:
+                    return self._generate_attn_3d_via_subprocess(rgb_img, point_cloud_with_uv, img_res)
         else:
-            # Fall back to subprocess mode
-            return self._generate_attn_3d_via_subprocess(rgb_img, point_cloud_with_uv, img_res)
+            # Use Grounded-SAM-2 (original behavior)
+            cprint(f"[AdroitRunner] Using Grounded-SAM-2 for inference", "blue")
+            if self.gs2_api_url and HAS_REQUESTS:
+                return self._generate_attn_3d_via_api(rgb_img, point_cloud_with_uv, img_res)
+            else:
+                return self._generate_attn_3d_via_subprocess(rgb_img, point_cloud_with_uv, img_res)
     
     def _generate_attn_3d_via_api(self, rgb_img, point_cloud_with_uv, img_res=(84, 84)):
         """Generate attn_3d using HTTP API (faster, no model reload)."""
@@ -523,12 +634,15 @@ class AdroitRunner(BaseRunner):
                         needs_attn_3d = True
                     
                     if needs_attn_3d:
+                        cprint(f"[AdroitRunner] Policy needs attn_3d, checking if environment provides it", "cyan")
                         # Only generate attn_3d if policy requires it
                         # Check if environment provides attn_3d
                         if 'attn_3d' in obs_dict:
                             # Environment provides attn_3d, use it
+                            cprint(f"[AdroitRunner] Environment provides attn_3d, using it directly", "green")
                             obs_dict_input['attn_3d'] = obs_dict['attn_3d'].unsqueeze(0)
                         else:
+                            cprint(f"[AdroitRunner] Environment does not provide attn_3d, generating during inference", "yellow")
                             # Generate attn_3d during inference using Grounded-SAM-2
                             # Get RGB image by rendering from environment
                             # Navigate through wrapper chain to get to AdroitEnv
@@ -571,29 +685,49 @@ class AdroitRunner(BaseRunner):
                                     cprint(f"[warn] Cannot get point cloud with UV, using fallback zero attention", "yellow")
                                     point_cloud_full = None
                             
+                            # Get segmentation data if using env-based segmentation
+                            seg_data = None
+                            if self.seg_type == 'env':
+                                # Get segmentation data from observation
+                                cprint(f"[AdroitRunner] Checking for segmentation data in np_obs_dict keys: {list(np_obs_dict.keys())}", "cyan")
+                                seg_data = np_obs_dict.get('segmentation')
+                                if seg_data is not None:
+                                    cprint(f"[AdroitRunner] Found segmentation data in observation, shape: {seg_data.shape}", "green")
+                                else:
+                                    cprint(f"[warn] seg_type='env' but no segmentation data in observation, using GS2 fallback", "yellow")
+                                    self.seg_type = 'gs2'  # Temporarily fall back to GS2
+
                             # Generate attn_3d
                             if rgb_img is not None and point_cloud_full is not None:
-                                # Generate attn_3d for each timestep in the observation window
-                                T = point_cloud_full.shape[0]
-                                attn_3d_list = []
-                                for t in range(T):
-                                    pc_t = point_cloud_full[t]  # (N, 8) or (N, 6)
-                                    
-                                    # If point cloud doesn't have UV, we can't do precise mapping
-                                    if pc_t.shape[-1] < 8:
-                                        cprint(f"[warn] Point cloud at timestep {t} doesn't have UV coordinates (shape: {pc_t.shape}), using fallback", "yellow")
-                                        # Fallback: generate zero attention
-                                        attn_3d_t = np.zeros((3, 512), dtype=np.float32)
-                                    else:
-                                        # Generate attn_3d using Grounded-SAM-2
-                                        # Use latest RGB image for all timesteps (could be improved to use per-timestep images)
-                                        attn_3d_t = self._generate_attn_3d_inference(
-                                            rgb_img, pc_t, img_res=rgb_img.shape[:2]
-                                        )
-                                    
-                                    attn_3d_list.append(attn_3d_t)
-                                
-                                attn_3d = np.stack(attn_3d_list, axis=0)  # (T, C, N)
+                                # Check if we can use environment segmentation
+                                if self.seg_type == 'env' and seg_data is not None:
+                                    # Use environment segmentation data - process all timesteps at once
+                                    cprint(f"[AdroitRunner] Using environment segmentation for attn_3d generation", "green")
+                                    attn_3d = self._build_attn_from_env_seg(
+                                        point_cloud_full, seg_data, n_points=512, n_channels=3
+                                    )
+                                else:
+                                    # Generate attn_3d for each timestep using Grounded-SAM-2
+                                    cprint(f"[AdroitRunner] Using Grounded-SAM-2 for attn_3d generation", "yellow")
+                                    T = point_cloud_full.shape[0]
+                                    attn_3d_list = []
+                                    for t in range(T):
+                                        pc_t = point_cloud_full[t]  # (N, 8) or (N, 6)
+
+                                        # If point cloud doesn't have UV, we can't do precise mapping
+                                        if pc_t.shape[-1] < 8:
+                                            cprint(f"[warn] Point cloud at timestep {t} doesn't have UV coordinates (shape: {pc_t.shape}), using fallback", "yellow")
+                                            # Fallback: generate zero attention
+                                            attn_3d_t = np.zeros((3, 512), dtype=np.float32)
+                                        else:
+                                            # Use Grounded-SAM-2 or fallback
+                                            attn_3d_t = self._generate_attn_3d_inference(
+                                                rgb_img, pc_t, img_res=rgb_img.shape[:2], seg_data=None
+                                            )
+
+                                        attn_3d_list.append(attn_3d_t)
+
+                                    attn_3d = np.stack(attn_3d_list, axis=0)  # (T, C, N)
                             else:
                                 # Fallback: generate zero attention
                                 cprint(f"[warn] Cannot generate attn_3d (rgb_img={rgb_img is not None}, pc_full={point_cloud_full is not None}), using zero attention", "yellow")

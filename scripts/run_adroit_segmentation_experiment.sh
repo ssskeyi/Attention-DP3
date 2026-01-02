@@ -91,6 +91,12 @@ training_phase() {
         export SEED="${SEED}"
         export CONFIG_NAME="${CONFIG_NAME}"
         export ATTN_MODE="attn"
+        # 根据seg_type设置env_runner.seg_type参数
+        if [ "${seg_type}" = "env" ]; then
+            export EXTRA_ARGS="+task.env_runner.seg_type=env"
+        else
+            export EXTRA_ARGS="+task.env_runner.seg_type=gs2"
+        fi
 
         bash "${ROOT}/scripts/train_all_adroit.sh"
 
@@ -102,6 +108,12 @@ training_phase() {
         export SEED="${SEED}"
         export CONFIG_NAME="${CONFIG_NAME}"
         export ATTN_MODE="no_attn"
+        # 根据seg_type设置env_runner.seg_type参数
+        if [ "${seg_type}" = "env" ]; then
+            export EXTRA_ARGS="+task.env_runner.seg_type=env"
+        else
+            export EXTRA_ARGS="+task.env_runner.seg_type=gs2"
+        fi
 
         bash "${ROOT}/scripts/train_all_adroit.sh"
 

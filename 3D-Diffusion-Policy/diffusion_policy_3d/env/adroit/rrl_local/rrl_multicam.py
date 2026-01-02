@@ -26,8 +26,8 @@ def make_encoder(encoder, encoder_type, device, is_eval=True) :
     return encoder
 
 class BasicAdroitEnv(gym.Env): # , ABC
-    def __init__(self, env, cameras, latent_dim=512, hybrid_state=True, channels_first=False, 
-    height=84, width=84, test_image=False, num_repeats=1, num_frames=1, encoder_type=None, device=None):
+    def __init__(self, env, cameras, latent_dim=512, hybrid_state=True, channels_first=False,
+    height=84, width=84, test_image=False, num_repeats=1, num_frames=1, encoder_type=None, device=None, render_segmentation=False):
         self._env = env
         self.env_id = env.env.unwrapped.spec.id
         self.device = device
@@ -57,8 +57,9 @@ class BasicAdroitEnv(gym.Env): # , ABC
         self.height = height
         self.width = width
         self.action_space = self._env.action_space
+        self.render_segmentation = render_segmentation
         self.env_kwargs = {'cameras' : cameras, 'latent_dim' : latent_dim, 'hybrid_state': hybrid_state,
-                           'channels_first' : channels_first, 'height' : height, 'width' : width}
+                           'channels_first' : channels_first, 'height' : height, 'width' : width, 'render_segmentation': render_segmentation}
 
         shape = [3, self.width, self.height]
         self._observation_space = gym.spaces.Box(
@@ -75,8 +76,9 @@ class BasicAdroitEnv(gym.Env): # , ABC
         self.observation_dim = self.spec.observation_dim
         self.horizon = self._env.env.spec.max_episode_steps
 
-    def get_obs(self,):
+    def get_obs(self, render_segmentation=False):
         # for our case, let's output the image, and then also the sensor features
+        print(f"[BasicAdroitEnv] get_obs called with render_segmentation={render_segmentation}")
         if self.env_id in _mj_envs :
             env_state = self._env.env.get_env_state()
             qp = env_state['qpos']
@@ -91,6 +93,7 @@ class BasicAdroitEnv(gym.Env): # , ABC
             qp = qp[6:-6]
 
         imgs = [] # number of image is number of camera
+        segs = [] # segmentation masks for each camera
 
         if self.encoder is not None:
             for cam in self.cameras :
@@ -119,6 +122,40 @@ class BasicAdroitEnv(gym.Env): # , ABC
                     #img = img.astype(np.uint8)
                     # img = Image.fromarray(img) # TODO is this necessary?
                     imgs.append(img)
+
+                    # Render segmentation if requested
+                    if render_segmentation:
+                        try:
+                            # For pen environment, vil_camera is typically camera 0
+                            cam_id = 0  # Default to camera 0
+
+                            model = self._env.env.sim.model
+                            if hasattr(model, 'camera_name2id'):
+                                try:
+                                    cam_id = model.camera_name2id(cam)
+                                    print(f"[Adroit-Basic] Found camera {cam} at ID {cam_id}")
+                                except:
+                                    print(f"[Adroit-Basic] Camera {cam} not found, using ID 0")
+
+                            if cam_id is not None:
+                                seg_img = self._env.env.sim.render(width=self.width, height=self.height, mode='offscreen',
+                                                                   camera_name=cam, segmentation=True)
+                                print(f"[Adroit-Basic] Segmentation render successful for camera {cam} (id={cam_id}): shape {seg_img.shape}")
+                                seg_img = seg_img[::-1, :, :]
+                                # Convert (H, W) to (H, W, 2) format
+                                if seg_img.ndim == 2:
+                                    seg_expanded = np.stack([np.zeros_like(seg_img), seg_img], axis=2).astype(np.int32)
+                                    segs.append(seg_expanded)
+                                else:
+                                    segs.append(seg_img.astype(np.int32))
+                            else:
+                                print(f"[Adroit-Basic] Camera {cam} not found")
+                                dummy_seg = np.zeros((self.height, self.width, 2), dtype=np.int32)
+                                segs.append(dummy_seg)
+                        except Exception as e:
+                            print(f"[Adroit-Basic] Segmentation render failed for camera {cam}: {e}")
+                            dummy_seg = np.zeros((self.height, self.width, 2), dtype=np.int32)
+                            segs.append(dummy_seg)
             else:
                 img = (np.random.rand(1, 84, 84) * 255).astype(np.uint8)
                 imgs.append(img)
@@ -144,7 +181,18 @@ class BasicAdroitEnv(gym.Env): # , ABC
             qp = None
 
         sensor_info = qp
-        return pixels, sensor_info
+
+        # Handle segmentation data
+        segmentations = None
+        if render_segmentation and segs:
+            # Use the first camera's segmentation
+            segmentations = segs[0]
+            print(f"[Adroit-Basic] Returning segmentation data: {segmentations.shape}")
+
+        if render_segmentation:
+            return pixels, sensor_info, segmentations
+        else:
+            return pixels, sensor_info
 
     def get_env_infos(self):
         return self._env.get_env_infos()
@@ -159,18 +207,34 @@ class BasicAdroitEnv(gym.Env): # , ABC
 
     def reset(self):
         self._env.reset()
-        pixels, sensor_info = self.get_obs()
+        obs_result = self.get_obs(render_segmentation=self.render_segmentation)
+        if self.render_segmentation:
+            pixels, sensor_info, segmentations = obs_result
+        else:
+            pixels, sensor_info = obs_result
+            segmentations = None
         for _ in range(self._num_frames):
             self._frames.append(pixels)
         stacked_pixels = self.get_stacked_pixels()
-        return stacked_pixels, sensor_info
+        if self.render_segmentation:
+            return stacked_pixels, sensor_info, segmentations
+        else:
+            return stacked_pixels, sensor_info
 
     def get_obs_for_first_state_but_without_reset(self):
-        pixels, sensor_info = self.get_obs()
+        obs_result = self.get_obs(render_segmentation=self.render_segmentation)
+        if self.render_segmentation:
+            pixels, sensor_info, segmentations = obs_result
+        else:
+            pixels, sensor_info = obs_result
+            segmentations = None
         for _ in range(self._num_frames):
             self._frames.append(pixels)
         stacked_pixels = self.get_stacked_pixels()
-        return stacked_pixels, sensor_info
+        if self.render_segmentation:
+            return stacked_pixels, sensor_info, segmentations
+        else:
+            return stacked_pixels, sensor_info
 
     def step(self, action):
         reward_sum = 0.0
@@ -185,10 +249,19 @@ class BasicAdroitEnv(gym.Env): # , ABC
                 break
         env_info['n_goal_achieved'] = n_goal_achieved
         # now get stacked frames
-        pixels, sensor_info = self.get_obs()
+        obs_result = self.get_obs(render_segmentation=self.render_segmentation)
+        if self.render_segmentation:
+            pixels, sensor_info, segmentations = obs_result
+        else:
+            pixels, sensor_info = obs_result
+            segmentations = None
         self._frames.append(pixels)
         stacked_pixels = self.get_stacked_pixels()
-        return [stacked_pixels, sensor_info], reward_sum, done, env_info
+
+        if self.render_segmentation:
+            return [stacked_pixels, sensor_info, segmentations], reward_sum, done, env_info
+        else:
+            return [stacked_pixels, sensor_info], reward_sum, done, env_info
 
     def set_env_state(self, state):
         return self._env.set_env_state(state)
@@ -242,6 +315,7 @@ class BasicAdroitEnv(gym.Env): # , ABC
 
     def get_pixels_with_width_height(self, w, h):
         imgs = [] # number of image is number of camera
+        segs = [] # segmentation masks for each camera
 
         for cam in self.cameras : # for each camera, render once
             img = self._env.env.sim.render(width=w, height=h, mode='offscreen', camera_name=cam, device_id=0) # TODO device id will think later
@@ -290,8 +364,9 @@ class BasicFrankaEnv(gym.Env):
         self.height = height
         self.width = width
         self.action_space = self._env.action_space
+        self.render_segmentation = render_segmentation
         self.env_kwargs = {'cameras' : cameras, 'latent_dim' : latent_dim, 'hybrid_state': hybrid_state,
-                           'channels_first' : channels_first, 'height' : height, 'width' : width}
+                           'channels_first' : channels_first, 'height' : height, 'width' : width, 'render_segmentation': render_segmentation}
 
         shape = [3, self.width, self.height]
         self._observation_space = gym.spaces.Box(
@@ -314,9 +389,11 @@ class BasicFrankaEnv(gym.Env):
         self.observation_dim = self.spec.observation_dim
         self.horizon = self._env.env.spec.max_episode_steps
 
-    def get_obs(self,):
+    def get_obs(self, render_segmentation=False):
         # for our case, let's output the image, and then also the sensor features
+        print(f"[Adroit-Basic] get_obs called with render_segmentation={render_segmentation}")
         imgs = [] # number of image is number of camera
+        segs = [] # segmentation masks for each camera
 
         if self.encoder is not None:
             for cam in self.cameras :
@@ -372,7 +449,18 @@ class BasicFrankaEnv(gym.Env):
             qp = None
 
         sensor_info = qp
-        return pixels, sensor_info
+
+        # Handle segmentation data
+        segmentations = None
+        if render_segmentation and segs:
+            # Use the first camera's segmentation
+            segmentations = segs[0]
+            print(f"[Adroit-Basic] Returning segmentation data: {segmentations.shape}")
+
+        if render_segmentation:
+            return pixels, sensor_info, segmentations
+        else:
+            return pixels, sensor_info
 
     def get_env_infos(self):
         return self._env.get_env_infos()
@@ -386,18 +474,34 @@ class BasicFrankaEnv(gym.Env):
 
     def reset(self):
         self._env.reset()
-        pixels, sensor_info = self.get_obs()
+        obs_result = self.get_obs(render_segmentation=self.render_segmentation)
+        if self.render_segmentation:
+            pixels, sensor_info, segmentations = obs_result
+        else:
+            pixels, sensor_info = obs_result
+            segmentations = None
         for _ in range(self._num_frames):
             self._frames.append(pixels)
         stacked_pixels = self.get_stacked_pixels()
-        return stacked_pixels, sensor_info
+        if self.render_segmentation:
+            return stacked_pixels, sensor_info, segmentations
+        else:
+            return stacked_pixels, sensor_info
 
     def get_obs_for_first_state_but_without_reset(self):
-        pixels, sensor_info = self.get_obs()
+        obs_result = self.get_obs(render_segmentation=self.render_segmentation)
+        if self.render_segmentation:
+            pixels, sensor_info, segmentations = obs_result
+        else:
+            pixels, sensor_info = obs_result
+            segmentations = None
         for _ in range(self._num_frames):
             self._frames.append(pixels)
         stacked_pixels = self.get_stacked_pixels()
-        return stacked_pixels, sensor_info
+        if self.render_segmentation:
+            return stacked_pixels, sensor_info, segmentations
+        else:
+            return stacked_pixels, sensor_info
 
     def step(self, action):
         reward_sum = 0.0
@@ -412,10 +516,19 @@ class BasicFrankaEnv(gym.Env):
                 break
         env_info['n_goal_achieved'] = n_goal_achieved
         # now get stacked frames
-        pixels, sensor_info = self.get_obs()
+        obs_result = self.get_obs(render_segmentation=self.render_segmentation)
+        if self.render_segmentation:
+            pixels, sensor_info, segmentations = obs_result
+        else:
+            pixels, sensor_info = obs_result
+            segmentations = None
         self._frames.append(pixels)
         stacked_pixels = self.get_stacked_pixels()
-        return [stacked_pixels, sensor_info], reward_sum, done, env_info
+
+        if self.render_segmentation:
+            return [stacked_pixels, sensor_info, segmentations], reward_sum, done, env_info
+        else:
+            return [stacked_pixels, sensor_info], reward_sum, done, env_info
 
     def set_env_state(self, state):
         return self._env.set_env_state(state)
@@ -468,6 +581,7 @@ class BasicFrankaEnv(gym.Env):
 
     def get_pixels_with_width_height(self, w, h):
         imgs = [] # number of image is number of camera
+        segs = [] # segmentation masks for each camera
 
         for cam in self.cameras : # for each camera, render once
             img = self._env.env.sim.render(width=w, height=h, mode='offscreen', camera_name=cam, device_id=0) # TODO device id will think later
