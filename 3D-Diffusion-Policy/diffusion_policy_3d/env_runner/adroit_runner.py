@@ -74,6 +74,38 @@ class AdroitRunner(BaseRunner):
         self.logger_util_test = logger_util.LargestKRecorder(K=3)
         self.logger_util_test10 = logger_util.LargestKRecorder(K=5)
 
+        # Configuration for Grounded-SAM-2 inference
+        # Option 1: Use API server (recommended for performance)
+        # Set gs2_api_url to use API server, e.g., "http://127.0.0.1:5000"
+        # If None, falls back to subprocess mode
+        self.gs2_api_url = os.getenv("GS2_API_URL", "http://127.0.0.1:5000")  # e.g., "http://127.0.0.1:5000"
+        # Control verbose output (set GS2_VERBOSE=0 to disable)
+        self.gs2_verbose = os.getenv("GS2_VERBOSE", "0").lower() in ("1", "true", "yes")
+
+        # Option 2: Subprocess mode (original, slower)
+        self.gs2_conda_env = "aedp3_vis"
+        self.gs2_text_prompt = self._get_text_prompt_for_task(task_name)
+        # Get project root (3 levels up from this file)
+        # __file__: .../3D-Diffusion-Policy/diffusion_policy_3d/env_runner/adroit_runner.py
+        # project_root: .../AEDP3
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        self.gs2_script_path = os.path.join(
+            project_root, "Grounded-SAM-2", "infer_grounded_sam2_single.py"
+        )
+        # Default paths (can be overridden via config)
+        self.gs2_sam2_ckpt = "checkpoints/sam2.1_hiera_large.pt"
+        self.gs2_sam2_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
+        self.gs2_gdino_cfg = "grounding_dino/groundingdino/config/GroundingDINO_SwinB_cfg.py"
+        self.gs2_gdino_ckpt = "gdino_checkpoints/groundingdino_swinb_cogcoor.pth"
+        self.gs2_device = "cuda"
+        self.gs2_box_thr = 0.25
+        self.gs2_text_thr = 0.15
+
+        # Create temp directory for inference images in project root
+        temp_dir = os.path.join(project_root, "temp")
+        os.makedirs(temp_dir, exist_ok=True)
+        self.temp_dir = temp_dir
+
     def _point_cloud_sampling(self, point_cloud: np.ndarray, num_points: int, method: str = 'fps'):
         """
         Point cloud sampling function consistent with training
@@ -111,8 +143,16 @@ class AdroitRunner(BaseRunner):
             raise NotImplementedError(f"point cloud sampling method {method} not implemented")
 
         return point_cloud
-        
-        # Configuration for Grounded-SAM-2 inference
+
+    def _get_text_prompt_for_task(self, task_name):
+        """Get text prompt for Grounded-SAM-2 based on task name."""
+        prompts = {
+            'door': 'door handle. door.',
+            'hammer': 'hammer. handle.',
+            "pen": "blue pen in hand.",
+            # Add more task prompts as needed
+        }
+        return prompts.get(task_name, 'object.')  # Default fallback
         # Option 1: Use API server (recommended for performance)
         # Set gs2_api_url to use API server, e.g., "http://127.0.0.1:5000"
         # If None, falls back to subprocess mode
