@@ -73,6 +73,44 @@ class AdroitRunner(BaseRunner):
 
         self.logger_util_test = logger_util.LargestKRecorder(K=3)
         self.logger_util_test10 = logger_util.LargestKRecorder(K=5)
+
+    def _point_cloud_sampling(self, point_cloud: np.ndarray, num_points: int, method: str = 'fps'):
+        """
+        Point cloud sampling function consistent with training
+        point_cloud: (N, D) where D can be 6 (xyz+rgb), 8 (xyz+rgb+uv), or 3 (xyz)
+        """
+        if num_points == 'all':  # use all points
+            return point_cloud
+
+        if point_cloud.shape[0] <= num_points:
+            # pad with zeros
+            point_cloud_dim = point_cloud.shape[-1]
+            point_cloud = np.concatenate([point_cloud, np.zeros((num_points - point_cloud.shape[0], point_cloud_dim))], axis=0)
+            return point_cloud
+
+        if method == 'uniform':
+            # uniform sampling
+            sampled_indices = np.random.choice(point_cloud.shape[0], num_points, replace=False)
+            point_cloud = point_cloud[sampled_indices]
+        elif method == 'fps':
+            # fast point cloud sampling using torch3d (consistent with training)
+            try:
+                import pytorch3d.ops as torch3d_ops
+                point_cloud_tensor = torch.from_numpy(point_cloud).unsqueeze(0).cuda()
+                num_points_tensor = torch.tensor([num_points]).cuda()
+                # remember to only use coord to sample
+                _, sampled_indices = torch3d_ops.sample_farthest_points(points=point_cloud_tensor[..., :3], K=num_points_tensor)
+                point_cloud = point_cloud_tensor.squeeze(0).cpu().numpy()
+                point_cloud = point_cloud[sampled_indices.squeeze(0).cpu().numpy()]
+            except ImportError:
+                # fallback to random sampling if torch3d not available
+                cprint("[warn] pytorch3d not available, falling back to random sampling for inference", "yellow")
+                sampled_indices = np.random.choice(point_cloud.shape[0], num_points, replace=False)
+                point_cloud = point_cloud[sampled_indices]
+        else:
+            raise NotImplementedError(f"point cloud sampling method {method} not implemented")
+
+        return point_cloud
         
         # Configuration for Grounded-SAM-2 inference
         # Option 1: Use API server (recommended for performance)
@@ -124,14 +162,9 @@ class AdroitRunner(BaseRunner):
         img_res: (H, W) of original image
         """
         H, W = img_res
-        
-        # Sample or pad point cloud
-        if point_cloud.shape[0] >= n_points:
-            idx = np.random.choice(point_cloud.shape[0], n_points, replace=False)
-            pc = point_cloud[idx]
-        else:
-            pc = np.zeros((n_points, point_cloud.shape[1]), dtype=point_cloud.dtype)
-            pc[: point_cloud.shape[0]] = point_cloud
+
+        # Sample or pad point cloud using FPS (consistent with training)
+        pc = self._point_cloud_sampling(point_cloud, n_points, method='fps')
         
         xyz = pc[:, :3]
         

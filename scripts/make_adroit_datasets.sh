@@ -29,7 +29,7 @@ GS2_DIR="${GS2_DIR:-${ROOT}/Grounded-SAM-2}"
 GS2_CONDA_ENV="${GS2_CONDA_ENV:-aedp3_vis}"
 SEG_TYPES="${SEG_TYPES:-env gs2}"
 DATA_OUTPUT_ROOT="${DATA_OUTPUT_ROOT:-}"
-DATA_ROOT="${DATA_OUTPUT_ROOT:-${ROOT}/3D-Diffusion_policy/data}"
+DATA_ROOT="${DATA_OUTPUT_ROOT:-${ROOT}/3D-Diffusion-Policy/data}"
 
 log() { echo -e "[make_adroit] $*"; }
 

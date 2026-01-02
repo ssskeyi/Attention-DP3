@@ -7,10 +7,50 @@ import numcodecs
 import pycocotools.mask as mask_util
 from diffusion_policy_3d.common.replay_buffer import ReplayBuffer, get_optimal_chunks
 import re
+import torch
+try:
+    import pytorch3d.ops as torch3d_ops
+    HAS_TORCH3D = True
+except ImportError:
+    HAS_TORCH3D = False
+    print("Warning: pytorch3d not found, falling back to random sampling for attention generation")
 
 def load_json(json_path):
     with open(json_path, "r") as f:
         return json.load(f)
+
+def point_cloud_sampling(point_cloud: np.ndarray, num_points: int, method: str = 'fps'):
+    """
+    Point cloud sampling function consistent with training
+    point_cloud: (N, D) where D can be 6 (xyz+rgb), 8 (xyz+rgb+uv), or 3 (xyz)
+    """
+    if num_points == 'all':  # use all points
+        return point_cloud
+
+    if point_cloud.shape[0] <= num_points:
+        # pad with zeros
+        point_cloud_dim = point_cloud.shape[-1]
+        point_cloud = np.concatenate([point_cloud, np.zeros((num_points - point_cloud.shape[0], point_cloud_dim))], axis=0)
+        return point_cloud
+
+    if method == 'uniform':
+        # uniform sampling
+        sampled_indices = np.random.choice(point_cloud.shape[0], num_points, replace=False)
+        point_cloud = point_cloud[sampled_indices]
+    elif method == 'fps' and HAS_TORCH3D:
+        # fast point cloud sampling using torch3d (consistent with training)
+        point_cloud_tensor = torch.from_numpy(point_cloud).unsqueeze(0).cuda()
+        num_points_tensor = torch.tensor([num_points]).cuda()
+        # remember to only use coord to sample
+        _, sampled_indices = torch3d_ops.sample_farthest_points(points=point_cloud_tensor[..., :3], K=num_points_tensor)
+        point_cloud = point_cloud_tensor.squeeze(0).cpu().numpy()
+        point_cloud = point_cloud[sampled_indices.squeeze(0).cpu().numpy()]
+    else:
+        # fallback to random sampling if torch3d not available
+        sampled_indices = np.random.choice(point_cloud.shape[0], num_points, replace=False)
+        point_cloud = point_cloud[sampled_indices]
+
+    return point_cloud
 
 def build_attn_from_mask(point_cloud, mask_json, img_res=(84, 84), n_points=512, n_channels=3):
     """
@@ -21,13 +61,8 @@ def build_attn_from_mask(point_cloud, mask_json, img_res=(84, 84), n_points=512,
     """
     H, W = img_res
     
-    # Sample or pad point cloud
-    if point_cloud.shape[0] >= n_points:
-        idx = np.random.choice(point_cloud.shape[0], n_points, replace=False)
-        pc = point_cloud[idx]
-    else:
-        pc = np.zeros((n_points, point_cloud.shape[1]), dtype=point_cloud.dtype)
-        pc[: point_cloud.shape[0]] = point_cloud
+    # Sample or pad point cloud using FPS (consistent with training)
+    pc = point_cloud_sampling(point_cloud, n_points, method='fps')
     
     xyz = pc[:, :3]
     
@@ -89,13 +124,8 @@ def build_attn_from_env_seg(point_cloud, seg_data, n_points=512, n_channels=3):
     """
     H, W, _ = seg_data.shape
 
-    # Sample or pad point cloud
-    if point_cloud.shape[0] >= n_points:
-        idx = np.random.choice(point_cloud.shape[0], n_points, replace=False)
-        pc = point_cloud[idx]
-    else:
-        pc = np.zeros((n_points, point_cloud.shape[1]), dtype=point_cloud.dtype)
-        pc[: point_cloud.shape[0]] = point_cloud
+    # Sample or pad point cloud using FPS (consistent with training)
+    pc = point_cloud_sampling(point_cloud, n_points, method='fps')
 
     xyz = pc[:, :3]
 

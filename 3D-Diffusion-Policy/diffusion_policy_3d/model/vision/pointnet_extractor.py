@@ -287,8 +287,6 @@ class DP3Encoder(nn.Module):
             else:
                 raise ValueError(f"attn_3d shape should be [C, N], got {self.attn_3d_shape}")
 
-            cprint(f"[DP3Encoder] attn_3d shape: {self.attn_3d_shape}", "yellow")
-            cprint(f"[DP3Encoder] attention will be concatenated with xyz", "yellow")
         else:
             self.attn_3d_shape = None
             attn_3d_channels = 0
@@ -297,7 +295,6 @@ class DP3Encoder(nn.Module):
         cprint(f"[DP3Encoder] point cloud shape: {self.point_cloud_shape}", "yellow")
         cprint(f"[DP3Encoder] state shape: {self.state_shape}", "yellow")
         cprint(f"[DP3Encoder] imagination point shape: {self.imagination_shape}", "yellow")
-        cprint(f"[DP3Encoder] use_attn_3d: {self.use_attn_3d}", "yellow")
         
 
         self.use_pc_color = use_pc_color
@@ -317,7 +314,6 @@ class DP3Encoder(nn.Module):
                 attn_3d_channels, _ = self.attn_3d_shape
                 encoder_cfg['in_channels'] = base_channels + attn_3d_channels
                 self.extractor = PointNetEncoderXYZ(**encoder_cfg)
-                cprint(f"[DP3Encoder] pointnet in_channels: {encoder_cfg['in_channels']} (xyz + attention)", "yellow")
             else:
                 encoder_cfg['in_channels'] = base_channels
                 if use_pc_color:
@@ -359,7 +355,6 @@ class DP3Encoder(nn.Module):
                 attn_3d_transposed = attn_3d.transpose(1, 2)  # (B, N, C)
                 # Concatenate xyz coordinates with attention features
                 points = torch.cat([points, attn_3d_transposed], dim=-1)  # (B, N, 3+C)
-                cprint(f"[DP3Encoder] concatenated xyz and attention: {points.shape}", "cyan")
             else:
                 raise ValueError(f"attn_3d shape should be (B, C, N), got {attn_3d.shape}")
 

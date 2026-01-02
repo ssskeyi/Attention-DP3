@@ -19,14 +19,14 @@ set -euo pipefail
 #   SKIP_DATA_GEN=false     是否跳过数据生成阶段
 
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
-GPU_ID="${GPU_ID:-1}"
+GPU_ID="${GPU_ID:-0}"
 DATA_GPU="${DATA_GPU:-0}"
 SEED="${SEED:-42}"
 CONFIG_NAME="${CONFIG_NAME:-dp3}"
 TASKS="${TASKS:-door hammer pen}"
-SEG_TYPES="${SEG_TYPES:-env}"
+SEG_TYPES="${SEG_TYPES:-env gs2}"
 MAX_EP="${MAX_EP:-10}"
-SKIP_DATA_GEN="${SKIP_DATA_GEN:-false}"
+SKIP_DATA_GEN="${SKIP_DATA_GEN:-true}"
 
 log() { echo -e "[experiment] $*"; }
 
@@ -83,6 +83,17 @@ training_phase() {
     for seg_type in ${SEG_TYPES}; do
         log "处理分割类型: ${seg_type}"
 
+        # attn 实验
+        log "运行 ${seg_type} attn 实验"
+        export DATASET_TYPE="${seg_type}"
+        export RUN_NAME_PREFIX="${seg_type}_attn"
+        export GPU_ID="${GPU_ID}"
+        export SEED="${SEED}"
+        export CONFIG_NAME="${CONFIG_NAME}"
+        export ATTN_MODE="attn"
+
+        bash "${ROOT}/scripts/train_all_adroit.sh"
+
         # no_attn 实验
         log "运行 ${seg_type} no_attn 实验"
         export DATASET_TYPE="${seg_type}"
@@ -94,16 +105,6 @@ training_phase() {
 
         bash "${ROOT}/scripts/train_all_adroit.sh"
 
-        # attn 实验
-        log "运行 ${seg_type} attn 实验"
-        export DATASET_TYPE="${seg_type}"
-        export RUN_NAME_PREFIX="${seg_type}_attn"
-        export GPU_ID="${GPU_ID}"
-        export SEED="${SEED}"
-        export CONFIG_NAME="${CONFIG_NAME}"
-        export ATTN_MODE="attn"
-
-        bash "${ROOT}/scripts/train_all_adroit.sh"
     done
 }
 
