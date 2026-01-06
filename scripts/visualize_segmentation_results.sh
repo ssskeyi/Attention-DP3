@@ -27,8 +27,8 @@ visualize_env_seg() {
     for task in ${TASKS}; do
         log "可视化 ${task} 的环境分割..."
 
-        # env分割可视化
-        python "${ROOT}/tools/visualize_env_seg_mask.py" \
+        # env分割可视化（使用targets mask可视化）
+        python "${ROOT}/tools/visualize_targets_mask.py" \
             --task "${task}" \
             --zarr_path "${ROOT}/3D-Diffusion-Policy/data/adroit_${task}_expert_env.zarr" \
             --output_dir "${VIS_ROOT}/env_seg_${task}" \
@@ -46,10 +46,12 @@ visualize_gs2_seg() {
     for task in ${TASKS}; do
         log "可视化 ${task} 的GS2分割..."
 
-        # GS2分割可视化
+        gs2_root="${ROOT}/3D-Diffusion-Policy/export_gs2/adroit_${task}_gs2"
+        frames_root="${ROOT}/3D-Diffusion-Policy/export/adroit_${task}_gs2_frames"
+
         python "${ROOT}/scripts/visualize_gs2_results.py" \
-            --frames_root "${ROOT}/3D-Diffusion-Policy/export/adroit_${task}_frames" \
-            --gs2_root "${ROOT}/3D-Diffusion-Policy/export_gs2/adroit_${task}" \
+            --frames_root "$frames_root" \
+            --gs2_root "$gs2_root" \
             --output_root "${VIS_ROOT}/gs2_seg_${task}" \
             --score_thr 0.3 \
             --alpha 0.5
@@ -58,23 +60,6 @@ visualize_gs2_seg() {
     done
 }
 
-# 可视化目标mask
-visualize_targets() {
-    log "=== 开始可视化目标mask ==="
-
-    for task in ${TASKS}; do
-        log "可视化 ${task} 的目标mask..."
-
-        python "${ROOT}/tools/visualize_targets_mask.py" \
-            --task "${task}" \
-            --zarr_path "${ROOT}/3D-Diffusion-Policy/data/adroit_${task}_expert_env.zarr" \
-            --output_dir "${VIS_ROOT}/targets_${task}" \
-            --max_episodes 5 \
-            --frames_per_ep 10
-
-        log "${task} 目标mask可视化完成"
-    done
-}
 
 # 主函数
 main() {
@@ -88,22 +73,18 @@ main() {
     create_dirs
     visualize_env_seg
     visualize_gs2_seg
-    visualize_targets
 
     log "所有可视化完成！"
     log "结果保存在: ${VIS_ROOT}"
     log ""
     log "可视化结果结构:"
     log "  ${VIS_ROOT}/"
-    log "  ├── env_seg_pen/     # pen环境分割可视化"
-    log "  ├── env_seg_door/    # door环境分割可视化"
-    log "  ├── env_seg_hammer/  # hammer环境分割可视化"
+    log "  ├── env_seg_pen/     # pen环境分割可视化 (targets mask)"
+    log "  ├── env_seg_door/    # door环境分割可视化 (targets mask)"
+    log "  ├── env_seg_hammer/  # hammer环境分割可视化 (targets mask)"
     log "  ├── gs2_seg_pen/     # pen GS2分割可视化"
     log "  ├── gs2_seg_door/    # door GS2分割可视化"
-    log "  ├── gs2_seg_hammer/  # hammer GS2分割可视化"
-    log "  ├── targets_pen/     # pen目标mask可视化"
-    log "  ├── targets_door/    # door目标mask可视化"
-    log "  └── targets_hammer/  # hammer目标mask可视化"
+    log "  └── gs2_seg_hammer/  # hammer GS2分割可视化"
 }
 
 main "$@"
