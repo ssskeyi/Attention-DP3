@@ -30,6 +30,7 @@ export_gs2_vis/
 debug/
 debug_env_seg/
 debug_targets/
+vis_res/
 
 _C.cpython-38-x86_64-linux-gnu.so
 _C.cpython-39-x86_64-linux-gnu.so
