@@ -63,11 +63,11 @@ gen_demo() {
 export_frames() {
   local task="$1"
   local seg_type="$2"
-  local zarr="${DATA_ROOT}/adroit_${task}_expert_${seg_type}.zarr"
+  local zarr_file="${3:-${DATA_ROOT}/adroit_${task}_expert_${seg_type}.zarr}"
   local out_dir="${ROOT}/3D-Diffusion-Policy/export/adroit_${task}_${seg_type}_frames"
   log "导出帧: ${task} (${seg_type}) -> ${out_dir}"
   python "${ROOT}/scripts/export_adroit_frames.py" \
-    --zarr "${zarr}" \
+    --zarr "${zarr_file}" \
     --out_dir "${out_dir}" \
     --max_episodes "${MAX_EP}"
 }
@@ -105,7 +105,7 @@ gs2_for_task() {
 convert_attn_zarr() {
   local task="$1"
   local seg_type="$2"
-  local input_zarr="${DATA_ROOT}/adroit_${task}_expert_${seg_type}.zarr"
+  local input_zarr_file="${3:-${DATA_ROOT}/adroit_${task}_expert_${seg_type}.zarr}"
   local json_root="${ROOT}/3D-Diffusion-Policy/export_gs2/adroit_${task}_${seg_type}"
   local output_zarr="${DATA_ROOT}/adroit_${task}_expert_${seg_type}_attn3d.zarr"
   log "生成 attn_3d zarr: ${task} (${seg_type}) -> ${output_zarr}"
@@ -114,7 +114,7 @@ convert_attn_zarr() {
     use_env_seg_flag="--use_env_seg"
   fi
   python "${ROOT}/scripts/convert_zarr_with_attn3d.py" \
-    --input_zarr "${input_zarr}" \
+    --input_zarr "${input_zarr_file}" \
     --json_root "${json_root}" \
     --output_zarr "${output_zarr}" \
     --n_points "${N_POINTS}" \
@@ -130,22 +130,35 @@ main() {
   log "GS2_DIR=${GS2_DIR}"
   log "GS2_CONDA_ENV=${GS2_CONDA_ENV}"
 
-  for seg_type in ${SEG_TYPES}; do
-    log "开始处理分割类型: ${seg_type}"
-    for task in ${TASKS}; do
-      gen_demo "${task}" "${seg_type}"
-      if [ "${seg_type}" = "env" ]; then
-        # 使用环境分割，直接转换zarr
-        convert_attn_zarr "${task}" "${seg_type}"
-      else
-        # 使用GS2流程
-        export_frames "${task}" "${seg_type}"
-        gs2_for_task "${task}" "${seg_type}"
-        convert_attn_zarr "${task}" "${seg_type}"
-      fi
-    done
-    log "完成分割类型: ${seg_type}"
+  # 阶段1：为每个task生成基础数据集（使用env分割作为基础）
+  log "=== 阶段1：生成基础数据集 ==="
+  for task in ${TASKS}; do
+    log "生成基础数据集: ${task}"
+    gen_demo "${task}" "env"
   done
+
+  # 阶段2：基于基础数据集生成不同attention版本
+  log "=== 阶段2：生成attention版本 ==="
+  for task in ${TASKS}; do
+    log "处理任务: ${task}"
+    base_zarr="${DATA_ROOT}/adroit_${task}_expert_env.zarr"
+
+    # 生成no_attn版本（直接使用基础zarr，改名）
+    no_attn_zarr="${DATA_ROOT}/adroit_${task}_expert_no_attn.zarr"
+    if [ -d "$base_zarr" ] && [ ! -d "$no_attn_zarr" ]; then
+      cp -r "$base_zarr" "$no_attn_zarr"
+      log "创建no_attn版本: $no_attn_zarr"
+    fi
+
+    # 生成env_attn版本（直接基于基础zarr转换）
+    convert_attn_zarr "${task}" "env" "$base_zarr"
+
+    # 生成gs2_attn版本（基于基础zarr进行GS2处理）
+    export_frames "${task}" "gs2" "$base_zarr"  # 从基础zarr导出帧到gs2目录
+    gs2_for_task "${task}" "gs2"   # 运行GS2
+    convert_attn_zarr "${task}" "gs2" "$base_zarr"
+  done
+
   log "全部完成"
 }
 

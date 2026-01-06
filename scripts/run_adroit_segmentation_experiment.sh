@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Adroit分割实验：比较GS2分割 vs 环境分割，每种都有attn和no_attn版本
+# Adroit分割实验：比较不同attention策略的效果
 # 实验设计：
-# - gs2_no_attn: GS2分割 + 无attention
-# - gs2_attn: GS2分割 + 有attention
-# - env_no_attn: 环境分割 + 无attention
-# - env_attn: 环境分割 + 有attention
+# - no_attn: 无attention（基准）
+# - gs2_attn: GS2分割 + attention
+# - env_attn: 环境分割 + attention
 #
 # 环境变量：
 #   GPU_ID=0                训练使用的GPU ID
@@ -43,35 +42,11 @@ data_generation() {
         return
     fi
 
-    # 为数据生成设置时间戳目录，方便并行运行多个实验
-    DATA_TIMESTAMP="${DATA_TIMESTAMP:-$(date +%Y%m%d_%H%M%S)}"
-    export DATA_OUTPUT_ROOT="${DATA_OUTPUT_ROOT:-${ROOT}/3D-Diffusion-Policy/data/data_${DATA_TIMESTAMP}}"
+    # 数据直接保存到data文件夹
+    export DATA_OUTPUT_ROOT="${DATA_OUTPUT_ROOT:-${ROOT}/3D-Diffusion-Policy/data}"
     log "数据将保存到: ${DATA_OUTPUT_ROOT}"
 
     bash "${ROOT}/scripts/make_adroit_datasets.sh"
-
-    # 创建符号链接到标准位置，方便训练脚本访问
-    log "创建数据文件符号链接..."
-    cd "${ROOT}/3D-Diffusion-Policy/data"
-    for task in ${TASKS}; do
-        for seg_type in ${SEG_TYPES}; do
-            # 链接原始zarr文件（无attention）
-            src_file="${DATA_OUTPUT_ROOT}/adroit_${task}_expert_${seg_type}.zarr"
-            dst_file="adroit_${task}_expert_${seg_type}.zarr"
-            if [ -d "$src_file" ] && [ ! -L "$dst_file" ]; then
-                ln -sf "$src_file" "$dst_file"
-                log "创建链接: $dst_file -> $src_file"
-            fi
-
-            # 链接带attention的zarr文件
-            src_file_attn="${DATA_OUTPUT_ROOT}/adroit_${task}_expert_${seg_type}_attn3d.zarr"
-            dst_file_attn="adroit_${task}_expert_${seg_type}_attn3d.zarr"
-            if [ -d "$src_file_attn" ] && [ ! -L "$dst_file_attn" ]; then
-                ln -sf "$src_file_attn" "$dst_file_attn"
-                log "创建链接: $dst_file_attn -> $src_file_attn"
-            fi
-        done
-    done
 
     log "数据生成完成"
 }
@@ -80,44 +55,41 @@ data_generation() {
 training_phase() {
     log "=== 开始训练阶段 ==="
 
-    for seg_type in ${SEG_TYPES}; do
-        log "处理分割类型: ${seg_type}"
+    # no_attn 实验（使用no_attn数据集）
+    log "运行 no_attn 实验"
+    export DATASET_TYPE="no_attn"
+    export RUN_NAME_PREFIX="no_attn"
+    export GPU_ID="${GPU_ID}"
+    export SEED="${SEED}"
+    export CONFIG_NAME="${CONFIG_NAME}"
+    export ATTN_MODE="no_attn"
+    export EXTRA_ARGS=""  # no_attn 不需要设置 seg_type
 
-        # attn 实验
-        log "运行 ${seg_type} attn 实验"
-        export DATASET_TYPE="${seg_type}"
-        export RUN_NAME_PREFIX="${seg_type}_attn"
-        export GPU_ID="${GPU_ID}"
-        export SEED="${SEED}"
-        export CONFIG_NAME="${CONFIG_NAME}"
-        export ATTN_MODE="attn"
-        # 根据seg_type设置env_runner.seg_type参数
-        if [ "${seg_type}" = "env" ]; then
-            export EXTRA_ARGS="+task.env_runner.seg_type=env"
-        else
-            export EXTRA_ARGS="+task.env_runner.seg_type=gs2"
-        fi
+    bash "${ROOT}/scripts/train_all_adroit.sh"
 
-        bash "${ROOT}/scripts/train_all_adroit.sh"
+    # gs2_attn 实验（使用gs2_attn数据集）
+    log "运行 gs2_attn 实验"
+    export DATASET_TYPE="gs2_attn"
+    export RUN_NAME_PREFIX="gs2_attn"
+    export GPU_ID="${GPU_ID}"
+    export SEED="${SEED}"
+    export CONFIG_NAME="${CONFIG_NAME}"
+    export ATTN_MODE="attn"
+    export EXTRA_ARGS="+task.env_runner.seg_type=gs2"
 
-        # no_attn 实验
-        log "运行 ${seg_type} no_attn 实验"
-        export DATASET_TYPE="${seg_type}"
-        export RUN_NAME_PREFIX="${seg_type}_no_attn"
-        export GPU_ID="${GPU_ID}"
-        export SEED="${SEED}"
-        export CONFIG_NAME="${CONFIG_NAME}"
-        export ATTN_MODE="no_attn"
-        # 根据seg_type设置env_runner.seg_type参数
-        if [ "${seg_type}" = "env" ]; then
-            export EXTRA_ARGS="+task.env_runner.seg_type=env"
-        else
-            export EXTRA_ARGS="+task.env_runner.seg_type=gs2"
-        fi
+    bash "${ROOT}/scripts/train_all_adroit.sh"
 
-        bash "${ROOT}/scripts/train_all_adroit.sh"
+    # env_attn 实验（使用env_attn数据集）
+    log "运行 env_attn 实验"
+    export DATASET_TYPE="env_attn"
+    export RUN_NAME_PREFIX="env_attn"
+    export GPU_ID="${GPU_ID}"
+    export SEED="${SEED}"
+    export CONFIG_NAME="${CONFIG_NAME}"
+    export ATTN_MODE="attn"
+    export EXTRA_ARGS="+task.env_runner.seg_type=env"
 
-    done
+    bash "${ROOT}/scripts/train_all_adroit.sh"
 }
 
 # 主函数
@@ -144,11 +116,10 @@ main() {
 
     log "实验结果总结:"
     log "生成的实验配置:"
-    for seg_type in ${SEG_TYPES}; do
-        for task_base in ${TASKS}; do
-            log "  - ${seg_type}_no_attn_${task_base}"
-            log "  - ${seg_type}_attn_${task_base}"
-        done
+    for task_base in ${TASKS}; do
+        log "  - no_attn_${task_base}"
+        log "  - gs2_attn_${task_base}"
+        log "  - env_attn_${task_base}"
     done
 }
 
