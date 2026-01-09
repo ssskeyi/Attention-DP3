@@ -392,7 +392,7 @@ class AdroitRunner(BaseRunner):
                     return self._generate_attn_3d_via_subprocess(rgb_img, point_cloud_with_uv, img_res)
         else:
             # Use Grounded-SAM-2 (original behavior)
-            cprint(f"[AdroitRunner] Using Grounded-SAM-2 for inference", "blue")
+            # cprint(f"[AdroitRunner] Using Grounded-SAM-2 for inference", "blue")
             if self.gs2_api_url and HAS_REQUESTS:
                 return self._generate_attn_3d_via_api(rgb_img, point_cloud_with_uv, img_res)
             else:
