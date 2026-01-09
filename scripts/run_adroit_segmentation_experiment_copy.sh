@@ -56,40 +56,40 @@ training_phase() {
     log "=== 开始训练阶段 ==="
 
     # env_attn 实验（使用env_attn数据集）
-    log "运行 env_attn 实验"
-    export DATASET_TYPE="env_attn"
-    export RUN_NAME_PREFIX="env_attn"
-    export GPU_ID="${GPU_ID}"
-    export SEED="${SEED}"
-    export CONFIG_NAME="${CONFIG_NAME}"
-    export ATTN_MODE="attn"
-    export EXTRA_ARGS="+task.env_runner.seg_type=env"
-
-    bash "${ROOT}/scripts/train_all_adroit.sh"
-
-    # # gs2_attn 实验（使用gs2_attn数据集）
-    # log "运行 gs2_attn 实验"
-    # export DATASET_TYPE="gs2_attn"
-    # export RUN_NAME_PREFIX="gs2_attn"
+    # log "运行 env_attn 实验"
+    # export DATASET_TYPE="env_attn"
+    # export RUN_NAME_PREFIX="env_attn"
     # export GPU_ID="${GPU_ID}"
     # export SEED="${SEED}"
     # export CONFIG_NAME="${CONFIG_NAME}"
     # export ATTN_MODE="attn"
-    # export EXTRA_ARGS="+task.env_runner.seg_type=gs2"
+    # export EXTRA_ARGS="+task.env_runner.seg_type=env"
 
     # bash "${ROOT}/scripts/train_all_adroit.sh"
 
-    # no_attn 实验（使用no_attn数据集）
-    log "运行 no_attn 实验"
-    export DATASET_TYPE="no_attn"
-    export RUN_NAME_PREFIX="no_attn"
+    # gs2_attn 实验（使用gs2_attn数据集）
+    log "运行 gs2_attn 实验"
+    export DATASET_TYPE="gs2_attn"
+    export RUN_NAME_PREFIX="gs2_attn"
     export GPU_ID="${GPU_ID}"
     export SEED="${SEED}"
     export CONFIG_NAME="${CONFIG_NAME}"
-    export ATTN_MODE="no_attn"
-    export EXTRA_ARGS=""  # no_attn 不需要设置 seg_type
+    export ATTN_MODE="attn"
+    export EXTRA_ARGS="+task.env_runner.seg_type=gs2"
 
     bash "${ROOT}/scripts/train_all_adroit.sh"
+
+    # no_attn 实验（使用no_attn数据集）
+    # log "运行 no_attn 实验"
+    # export DATASET_TYPE="no_attn"
+    # export RUN_NAME_PREFIX="no_attn"
+    # export GPU_ID="${GPU_ID}"
+    # export SEED="${SEED}"
+    # export CONFIG_NAME="${CONFIG_NAME}"
+    # export ATTN_MODE="no_attn"
+    # export EXTRA_ARGS=""  # no_attn 不需要设置 seg_type
+
+    # bash "${ROOT}/scripts/train_all_adroit.sh"
 }
 
 # 主函数

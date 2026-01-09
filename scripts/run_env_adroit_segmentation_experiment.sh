@@ -18,7 +18,7 @@ set -euo pipefail
 #   SKIP_DATA_GEN=false     是否跳过数据生成阶段
 
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
-GPU_ID="${GPU_ID:-0}"
+GPU_ID="${GPU_ID:-1}"
 DATA_GPU="${DATA_GPU:-0}"
 SEED="${SEED:-0}"
 CONFIG_NAME="${CONFIG_NAME:-dp3}"
@@ -79,17 +79,17 @@ training_phase() {
 
     # bash "${ROOT}/scripts/train_all_adroit.sh"
 
-    # no_attn 实验（使用no_attn数据集）
-    log "运行 no_attn 实验"
-    export DATASET_TYPE="no_attn"
-    export RUN_NAME_PREFIX="no_attn"
-    export GPU_ID="${GPU_ID}"
-    export SEED="${SEED}"
-    export CONFIG_NAME="${CONFIG_NAME}"
-    export ATTN_MODE="no_attn"
-    export EXTRA_ARGS=""  # no_attn 不需要设置 seg_type
+    # # no_attn 实验（使用no_attn数据集）
+    # log "运行 no_attn 实验"
+    # export DATASET_TYPE="no_attn"
+    # export RUN_NAME_PREFIX="no_attn"
+    # export GPU_ID="${GPU_ID}"
+    # export SEED="${SEED}"
+    # export CONFIG_NAME="${CONFIG_NAME}"
+    # export ATTN_MODE="no_attn"
+    # export EXTRA_ARGS=""  # no_attn 不需要设置 seg_type
 
-    bash "${ROOT}/scripts/train_all_adroit.sh"
+    # bash "${ROOT}/scripts/train_all_adroit.sh"
 }
 
 # 主函数

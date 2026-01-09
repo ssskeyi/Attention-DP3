@@ -18,7 +18,7 @@ set -euo pipefail
 #   SKIP_DATA_GEN=false     是否跳过数据生成阶段
 
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
-GPU_ID="${GPU_ID:-0}"
+GPU_ID="${GPU_ID:-2}"
 DATA_GPU="${DATA_GPU:-0}"
 SEED="${SEED:-0}"
 CONFIG_NAME="${CONFIG_NAME:-dp3}"
@@ -55,17 +55,17 @@ data_generation() {
 training_phase() {
     log "=== 开始训练阶段 ==="
 
-    # env_attn 实验（使用env_attn数据集）
-    log "运行 env_attn 实验"
-    export DATASET_TYPE="env_attn"
-    export RUN_NAME_PREFIX="env_attn"
-    export GPU_ID="${GPU_ID}"
-    export SEED="${SEED}"
-    export CONFIG_NAME="${CONFIG_NAME}"
-    export ATTN_MODE="attn"
-    export EXTRA_ARGS="+task.env_runner.seg_type=env"
+    # # env_attn 实验（使用env_attn数据集）
+    # log "运行 env_attn 实验"
+    # export DATASET_TYPE="env_attn"
+    # export RUN_NAME_PREFIX="env_attn"
+    # export GPU_ID="${GPU_ID}"
+    # export SEED="${SEED}"
+    # export CONFIG_NAME="${CONFIG_NAME}"
+    # export ATTN_MODE="attn"
+    # export EXTRA_ARGS="+task.env_runner.seg_type=env"
 
-    bash "${ROOT}/scripts/train_all_adroit.sh"
+    # bash "${ROOT}/scripts/train_all_adroit.sh"
 
     # # gs2_attn 实验（使用gs2_attn数据集）
     # log "运行 gs2_attn 实验"
