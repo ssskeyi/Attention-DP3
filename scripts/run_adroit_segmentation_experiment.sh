@@ -20,7 +20,7 @@ set -euo pipefail
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
 GPU_ID="${GPU_ID:-0}"
 DATA_GPU="${DATA_GPU:-0}"
-SEED="${SEED:-42}"
+SEED="${SEED:-0}"
 CONFIG_NAME="${CONFIG_NAME:-dp3}"
 TASKS="${TASKS:-pen door hammer}"
 SEG_TYPES="${SEG_TYPES:-env gs2}"

@@ -33,7 +33,7 @@ policy:
   crop_shape:
   - 80
   - 80
-  encoder_output_dim: 128
+  encoder_output_dim: 64
   horizon: ${horizon}
   kernel_size: 5
   n_action_steps: ${n_action_steps}
