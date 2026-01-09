@@ -90,20 +90,37 @@ class MetaworldRunner(BaseRunner):
     def _get_text_prompt_for_task(self, task_name):
         """Get text prompt for Grounded-SAM-2 based on task name."""
         # Mapping kept consistent with scripts/make_metaworld_datasets.sh
+        # prompts = {
+        #     'pick-place': 'red robotic arm. a little red rectangular prism.',
+        #     'shelf-place': 'red robotic arm. a little blue rectangular prism. shelf.',
+        #     'soccer': 'red robotic arm. soccer. soccer goal.',
+        #     'stick-pull': 'red robotic arm. blue stick. gray thermos.',
+        #     'stick-push': 'red robotic arm. blue stick. gray thermos.',
+        #     'sweep': 'red robotic arm. a little brown rectangular prism.',
+        #     'sweep-into': 'red robotic arm. a little brown rectangular prism.',
+        #     'window-close': 'red robotic arm. window.',
+        #     'window-open': 'red robotic arm. window.',
+        #     'hammer': 'red robotic arm. a hammer with a gray head and a red handle.',
+        #     'box-close': 'red robotic arm. box.',
+        #     'bin-picking': 'red robotic arm. bin.',
+        #     'disassemble': 'red robotic arm. disassemble.',
+        #     'reach': 'red robotic arm.'
+        # }
+
         prompts = {
-            'pick-place': 'red robotic arm. a little red rectangular prism.',
-            'shelf-place': 'red robotic arm. a little blue rectangular prism. shelf.',
-            'soccer': 'red robotic arm. soccer. soccer goal.',
-            'stick-pull': 'red robotic arm. blue stick. gray thermos.',
-            'stick-push': 'red robotic arm. blue stick. gray thermos.',
-            'sweep': 'red robotic arm. a little brown rectangular prism.',
-            'sweep-into': 'red robotic arm. a little brown rectangular prism.',
-            'window-close': 'red robotic arm. window.',
-            'window-open': 'red robotic arm. window.',
-            'hammer': 'red robotic arm. a hammer with a gray head and a red handle.',
-            'box-close': 'red robotic arm. box.',
-            'bin-picking': 'red robotic arm. bin.',
-            'disassemble': 'red robotic arm. disassemble.',
+            'pick-place': 'a little red rectangular prism.',
+            'shelf-place': 'a little blue rectangular prism. shelf.',
+            'soccer': 'soccer. soccer goal.',
+            'stick-pull': 'blue stick. gray thermos.',
+            'stick-push': 'blue stick. gray thermos.',
+            'sweep': 'a little rectangular prism.',
+            'sweep-into': 'a little brown rectangular prism.',
+            'window-close': 'window.',
+            'window-open': 'window.',
+            'hammer': 'a hammer with a gray head and a red handle. nail',
+            'box-close': 'lid. box.',
+            'bin-picking': 'bin. a little green rectangular prism.',
+            'disassemble': 'a ring with handle.',
             'reach': 'red robotic arm.'
         }
         return prompts.get(task_name, 'object.')  # Default fallback
