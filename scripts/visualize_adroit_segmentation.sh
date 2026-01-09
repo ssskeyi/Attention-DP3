@@ -5,7 +5,7 @@ set -euo pipefail
 # 将结果保存在项目根目录的vis_res文件夹下
 
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
-VIS_ROOT="${VIS_ROOT:-${ROOT}/vis_res}"
+VIS_ROOT="${VIS_ROOT:-${ROOT}/vis_res_adroit}"
 
 # 实验配置（与run_adroit_segmentation_experiment.sh保持一致）
 TASKS="${TASKS:-pen door hammer}"

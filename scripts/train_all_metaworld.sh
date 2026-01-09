@@ -7,6 +7,8 @@ set -euo pipefail
 #   GPU_ID=0
 #   SEED=0
 #   CONFIG_NAME=dp3
+#   TASKS="task1 task2 ..."  # 指定要运行的任务，不设置则运行全部
+#   GS2_PORT=5000           # GS2服务端口（仅GS2任务需要，会设置GS2_API_URL环境变量）
 #   EXTRA_ARGS=""
 
 DEBUG=False
@@ -17,9 +19,11 @@ ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
 GPU_ID="${GPU_ID:-0}"
 SEED="${SEED:-0}"
 CONFIG_NAME="${CONFIG_NAME:-dp3}"
+GS2_PORT="${GS2_PORT:-5000}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
 
-TASKS=(
+# 默认任务列表
+DEFAULT_TASKS=(
   metaworld_pick-place_no_attn
   metaworld_sweep_no_attn
   metaworld_shelf-place_no_attn
@@ -40,6 +44,14 @@ TASKS=(
   metaworld_reach
 )
 
+# 如果设置了TASKS环境变量，使用它；否则使用默认任务
+if [[ -n "${TASKS:-}" ]]; then
+  # 将TASKS字符串转换为数组
+  IFS=' ' read -r -a TASKS_ARRAY <<< "$TASKS"
+else
+  TASKS_ARRAY=("${DEFAULT_TASKS[@]}")
+fi
+
 log() { echo -e "[run_all_metaworld] $*"; }
 
 if [ $DEBUG = True ]; then
@@ -55,12 +67,17 @@ export CUDA_VISIBLE_DEVICES=${GPU_ID}
 
 total_start=$(date +%s)
 
-for task in "${TASKS[@]}"; do
+for task in "${TASKS_ARRAY[@]}"; do
   task_start=$(date +%s)
   if [[ "${task}" == *_no_attn ]]; then
     addition_info="1221mw"
+    # DP3任务不需要GS2 API URL
+    task_extra_args="${EXTRA_ARGS}"
   else
     addition_info="1221mwaedp3"
+    # GS2任务需要设置GS2 API URL环境变量
+    export GS2_API_URL="http://127.0.0.1:${GS2_PORT}"
+    task_extra_args="${EXTRA_ARGS}"
   fi
   exp_name="${task}-${CONFIG_NAME}-${addition_info}"
   run_dir="data/outputs/${exp_name}_seed${SEED}"
@@ -79,9 +96,9 @@ for task in "${TASKS[@]}"; do
                             exp_name=${exp_name} \
                             logging.mode=${wandb_mode} \
                             logging.name=${run_name} \
-                            logging.project=aedp3_wetaworld_cmp \
+                            logging.project=aedp3_wetaworld_cmp_0109 \
                             checkpoint.save_ckpt=${save_ckpt} \
-                            ${EXTRA_ARGS}
+                            ${task_extra_args}
   task_end=$(date +%s)
   log "完成训练: ${task} 用时 $((task_end - task_start)) 秒"
 done
