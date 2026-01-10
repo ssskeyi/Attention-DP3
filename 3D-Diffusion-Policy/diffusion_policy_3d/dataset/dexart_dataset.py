@@ -30,18 +30,37 @@ class DexArtDataset(BaseDataset):
         self.attn_3d_n_points = attn_3d_n_points
         self.attn_3d_n_channels = attn_3d_n_channels
 
-        keys_to_load = ['state', 'action', 'point_cloud', 'imagin_robot', 'img']
+        # Check what keys are actually available in the zarr file
+        try:
+            import zarr
+            zarr_group = zarr.open(zarr_path, mode='r')
+            available_keys = list(zarr_group['data'].keys())
+        except Exception as e:
+            print(f"Warning: Could not read zarr file keys: {e}")
+            # Fallback: try to load with minimal keys
+            try:
+                test_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=['state', 'action'])
+                available_keys = list(test_buffer.keys())
+            except Exception:
+                available_keys = []
+
+        keys_to_load = ['state', 'action']
+
+        # Add available observation keys
+        for key in ['point_cloud', 'imagin_robot', 'imagination_robot', 'img']:
+            if key in available_keys:
+                keys_to_load.append(key)
+
         self.has_attn_3d_in_zarr = False
         if use_attn_3d:
-            try:
-                # Test existence of attn_3d in zarr
-                test_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=['attn_3d'])
+            if 'attn_3d' in available_keys:
                 self.has_attn_3d_in_zarr = True
                 keys_to_load.append('attn_3d')
-            except (KeyError, ValueError):
+            else:
                 raise ValueError(
                     f"use_attn_3d=True but attn_3d not found in zarr: {zarr_path}\n"
-                    f"Please pre-compute attn_3d using scripts/convert_zarr_with_attn3d.sh before training."
+                    f"Please pre-compute attn_3d using scripts/convert_zarr_with_attn3d.sh before training.\n"
+                    f"Available keys: {available_keys}"
                 )
 
         self.replay_buffer = ReplayBuffer.copy_from_path(zarr_path, keys=keys_to_load)
@@ -84,10 +103,18 @@ class DexArtDataset(BaseDataset):
             'agent_pos': self.replay_buffer['state'][...,:],
             # 'point_cloud': self.replay_buffer['point_cloud'],
         }
+
+        # Add robot observation to normalizer if available
+        for key in ['imagin_robot', 'imagination_robot']:
+            if key in self.replay_buffer:
+                data[key] = self.replay_buffer[key]
+                break
+
         if self.use_attn_3d:
             if not self.has_attn_3d_in_zarr:
                 raise ValueError("use_attn_3d=True but attn_3d not found in zarr. This should have been caught in __init__.")
             data['attn_3d'] = self.replay_buffer['attn_3d']
+
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         normalizer['imagin_robot'] = SingleFieldLinearNormalizer.create_identity()
@@ -103,12 +130,22 @@ class DexArtDataset(BaseDataset):
     def _sample_to_data(self, sample):
         agent_pos = sample['state'][:,].astype(np.float32) # (agent_posx2, block_posex3)
         point_cloud = sample['point_cloud'][:,].astype(np.float32) # (T, 1024, 3)
-        imagin_robot = sample['imagin_robot'][:,].astype(np.float32) # (T, 96, 7)
+
+        # Handle different robot observation key names
+        robot_obs = None
+        for key in ['imagin_robot', 'imagination_robot']:
+            if key in sample:
+                robot_obs = sample[key][:].astype(np.float32)
+                break
+
+        if robot_obs is None:
+            # If no robot observation available, create a placeholder
+            robot_obs = np.zeros((point_cloud.shape[0], 96, 7), dtype=np.float32)
 
         data = {
             'obs': {
                 'point_cloud': point_cloud, # T, 1024, 3
-                'imagin_robot': imagin_robot, # T, 96, 7
+                'imagin_robot': robot_obs, # T, 96, 7
                 'agent_pos': agent_pos, # T, D_pos
             },
             'action': sample['action'].astype(np.float32) # T, D_action

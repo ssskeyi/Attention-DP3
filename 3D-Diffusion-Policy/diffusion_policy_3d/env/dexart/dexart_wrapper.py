@@ -50,16 +50,17 @@ class DexArtEnv(gym.Env):
 
         robot_dof = self.env.robot.dof
 
+        self.obs_sensor_dim = 32
+        self.num_points = num_points
+
         # Initialize point cloud generator for GS2 attention generation
-        self.pc_generator = DexArtPointCloudGenerator(self, img_size=84)
+        self.pc_generator = DexArtPointCloudGenerator(self, img_size=84, num_points=self.num_points)
         self.action_space = spaces.Box(
             low=-1,
             high=1,
             shape=(robot_dof,),
             dtype=np.float32
         )
-        self.obs_sensor_dim = 32
-        self.num_points = num_points
         self.observation_space = spaces.Dict({
             'image': spaces.Box(
                 low=0,
@@ -175,7 +176,7 @@ class DexArtPointCloudGenerator:
     This is needed for Grounded-SAM-2 attention generation during inference.
     """
 
-    def __init__(self, env, img_size=84, fov=75):
+    def __init__(self, env, img_size=84, fov=75, num_points=1024):
         """
         Initialize the point cloud generator.
 
@@ -183,10 +184,12 @@ class DexArtPointCloudGenerator:
             env: DexArt environment instance
             img_size: Size of the rendered image (assumed square)
             fov: Field of view in degrees
+            num_points: Number of points to generate
         """
         self.env = env
         self.img_size = img_size
         self.fov = fov
+        self.num_points = num_points
 
         # Calculate camera intrinsic matrix
         fovy_rad = math.radians(fov)
@@ -197,97 +200,123 @@ class DexArtPointCloudGenerator:
             [0, 0, 1]
         ])
 
-    def generate_point_cloud_with_uv(self, rgb_img=None):
+    def generate_point_cloud_with_uv(self, rgb_img=None, depth_img=None):
         """
-        Generate point cloud with UV coordinates from RGB-D data.
+        Generate point cloud with UV coordinates using DexArt's native 3D data.
+
+        DexArt directly provides 3D point cloud data from GPU rendering,
+        no need to reconstruct from RGB-D like MetaWorld.
 
         Args:
             rgb_img: RGB image (H, W, 3), if None will render from environment
+            depth_img: Depth image (H, W), if None will try to get from environment
 
         Returns:
             point_cloud: (N, 8) array with [x, y, z, r, g, b, u, v]
         """
+        # Get visual observations from DexArt environment
+        visual_obs = self.env.get_visual_observation()
+
+        # Debug: check what keys are available in visual observation
+        print(f"[DEBUG] Available visual obs keys: {list(visual_obs.keys())}")
+        for key, value in visual_obs.items():
+            if isinstance(value, np.ndarray):
+                print(f"[DEBUG] {key}: shape {value.shape}, dtype {value.dtype}, range [{value.min():.3f}, {value.max():.3f}]")
+            else:
+                print(f"[DEBUG] {key}: {type(value)}")
+
+        # Get depth image for 3D reconstruction (similar to MetaWorld approach)
+        depth_img = visual_obs['instance_1-depth']  # (84, 84) or (2, 84, 84)
+
+        # Handle multi-channel depth
+        if depth_img.ndim == 3 and depth_img.shape[0] == 2:
+            depth_img = depth_img[0]  # Take first channel
+
+        print(f"[DEBUG] Using depth-based reconstruction instead of DexArt point cloud")
+        print(f"[DEBUG] Depth shape: {depth_img.shape}, range: [{depth_img.min():.3f}, {depth_img.max():.3f}]")
+
+        # Reconstruct 3D points from depth image (in camera coordinates)
+        # This follows the standard camera projection model
+        height, width = depth_img.shape
+        fx, fy = self.camera_matrix[0, 0], self.camera_matrix[1, 1]
+        cx, cy = self.camera_matrix[0, 2], self.camera_matrix[1, 2]
+
+        # Create pixel coordinate grids
+        u_grid, v_grid = np.meshgrid(np.arange(width), np.arange(height))
+        u_grid = u_grid.astype(np.float32)
+        v_grid = v_grid.astype(np.float32)
+
+        # Back-project to 3D camera coordinates
+        # Standard pinhole camera model: X = (u - cx) * Z / fx, Y = (v - cy) * Z / fy
+        Z = depth_img.astype(np.float32)
+        X = (u_grid - cx) * Z / fx
+        Y = (v_grid - cy) * Z / fy
+
+        # Flatten to get all points
+        points_3d = np.stack([X.flatten(), Y.flatten(), Z.flatten()], axis=1)
+
+        # Filter out invalid points (zero or negative depth)
+        valid_depth = Z.flatten() > 0
+        points_3d = points_3d[valid_depth]
+        u_coords_flat = u_grid.flatten()[valid_depth]
+        v_coords_flat = v_grid.flatten()[valid_depth]
+
+        # Downsample to target number of points (1024)
+        if len(points_3d) > self.num_points:
+            indices = np.random.choice(len(points_3d), self.num_points, replace=False)
+            points_3d = points_3d[indices]
+            u_coords_flat = u_coords_flat[indices]
+            v_coords_flat = v_coords_flat[indices]
+
+        print(f"[DEBUG] Reconstructed {len(points_3d)} points from depth image")
+
+        # Get RGB image for color information
         if rgb_img is None:
-            rgb_img = self.env.render('rgb_array')  # (H, W, 3), uint8, [0, 255]
+            rgb_img = visual_obs['instance_1-rgb']  # (84, 84, 3) or (3, 84, 84)
+            if rgb_img.shape[0] == 3:  # CHW format
+                rgb_img = rgb_img.transpose(1, 2, 0)  # Convert to HWC
 
-        # Get depth from environment if available
-        try:
-            depth_obs = self.env.get_visual_observation()
-            depth_img = depth_obs.get('instance_1-depth', None)
-            if depth_img is None:
-                # If no depth available, create synthetic depth for testing
-                # This is a fallback - in practice, DexArt should provide depth
-                cprint("Warning: No depth image available, using synthetic depth", "yellow")
-                H, W = rgb_img.shape[:2]
-                depth_img = np.ones((H, W), dtype=np.float32) * 0.5  # Placeholder depth
-        except Exception as e:
-            cprint(f"Warning: Failed to get depth image: {e}, using synthetic depth", "yellow")
-            H, W = rgb_img.shape[:2]
-            depth_img = np.ones((H, W), dtype=np.float32) * 0.5
-
-        # Convert to float and normalize RGB to [0, 1]
+        # Convert RGB to float and normalize to [0, 1]
         rgb_img_float = rgb_img.astype(np.float32) / 255.0
+        print(f"[DEBUG] RGB image shape: {rgb_img_float.shape}, dtype: {rgb_img_float.dtype}")
 
-        # Create Open3D RGBD image
-        rgb_o3d = o3d.geometry.Image(rgb_img_float)
-        depth_o3d = o3d.geometry.Image(depth_img)
+        # UV coordinates are directly available from depth reconstruction
+        # Since we reconstructed from depth, UV coords are just normalized pixel coordinates
+        u_norm = u_coords_flat / self.img_size
+        v_norm = v_coords_flat / self.img_size
 
-        rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
-            rgb_o3d, depth_o3d,
-            convert_rgb_to_intensity=False
-        )
+        # All reconstructed points should be valid (we filtered zero depth already)
+        valid_mask = np.ones(len(points_3d), dtype=bool)
 
-        # Create camera intrinsic
-        intrinsic = o3d.camera.PinholeCameraIntrinsic(
-            width=self.img_size,
-            height=self.img_size,
-            fx=self.camera_matrix[0, 0],
-            fy=self.camera_matrix[1, 1],
-            cx=self.camera_matrix[0, 2],
-            cy=self.camera_matrix[1, 2]
-        )
+        print(f"[DEBUG] UV coordinates from depth reconstruction:")
+        print(f"[DEBUG] u_norm range: [{u_norm.min():.3f}, {u_norm.max():.3f}]")
+        print(f"[DEBUG] v_norm range: [{v_norm.min():.3f}, {v_norm.max():.3f}]")
+        print(f"[DEBUG] All points valid: {valid_mask.sum()}/{len(valid_mask)}")
 
-        # Generate point cloud from RGBD
-        pcd = o3d.geometry.PointCloud.create_from_rgbd_image(
-            rgbd_image, intrinsic
-        )
+        # For points within image bounds, sample colors from RGB image
+        colors = np.zeros((len(points_3d), 3), dtype=np.float32)
 
-        # Get points and colors
-        points = np.asarray(pcd.points)  # (N, 3)
-        colors = np.asarray(pcd.colors) * 255  # (N, 3), convert back to [0, 255]
+        # Convert normalized UV to pixel coordinates for sampling
+        u_pixel = np.clip((u_norm * self.img_size).astype(int), 0, self.img_size - 1)
+        v_pixel = np.clip((v_norm * self.img_size).astype(int), 0, self.img_size - 1)
 
-        # Generate UV coordinates
-        H, W = rgb_img.shape[:2]
+        # Sample colors from RGB image
+        colors = rgb_img_float[v_pixel, u_pixel]  # (N, 3)
 
-        # Create pixel coordinates for all points
-        # Open3D creates points in camera coordinate system
-        # We need to project back to image plane to get UV
-        points_homogeneous = np.column_stack([points, np.ones(len(points))])  # (N, 4)
+        # For invalid projections, set default color
+        colors[~valid_mask] = np.array([0.5, 0.5, 0.5])  # Gray for invalid points
 
-        # Camera projection matrix (simplified pinhole model)
-        proj_matrix = np.array([
-            [self.camera_matrix[0, 0], 0, self.camera_matrix[0, 2], 0],
-            [0, self.camera_matrix[1, 1], self.camera_matrix[1, 2], 0],
-            [0, 0, 1, 0]
-        ])
+        print(f"[DEBUG] UV range: u[{u_norm.min():.3f}, {u_norm.max():.3f}], v[{v_norm.min():.3f}, {v_norm.max():.3f}]")
+        print(f"[DEBUG] Valid projections: {valid_mask.sum()}/{len(valid_mask)}")
 
-        # Project to image plane
-        projected = proj_matrix @ points_homogeneous.T  # (3, N)
-        projected = projected[:2] / projected[2]  # (2, N), normalize by z
-
-        u_coords = projected[0]  # (N,)
-        v_coords = projected[1]  # (N,)
-
-        # Normalize UV to [0, 1]
-        u_norm = np.clip(u_coords / W, 0, 1).astype(np.float32)
-        v_norm = np.clip(v_coords / H, 0, 1).astype(np.float32)
-
-        # Combine into final point cloud: [x, y, z, r, g, b, u, v]
+        # Combine into final point cloud (N, 8): [x, y, z, r, g, b, u, v]
         point_cloud = np.column_stack([
-            points.astype(np.float32),      # xyz coordinates
-            colors.astype(np.float32),      # rgb colors
-            u_norm,                         # normalized u coordinates
-            v_norm                          # normalized v coordinates
+            points_3d,      # x, y, z (3D coordinates)
+            colors,         # r, g, b (colors)
+            u_norm,         # u (normalized UV)
+            v_norm          # v (normalized UV)
         ])
+
+        print(f"[DEBUG] Final point cloud shape: {point_cloud.shape}")
 
         return point_cloud

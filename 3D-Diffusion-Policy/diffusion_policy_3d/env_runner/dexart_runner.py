@@ -132,6 +132,8 @@ class DexArtRunner(BaseRunner):
 
     def _generate_attn_3d_inference(self, rgb_img, point_cloud_with_uv, img_res=(84, 84)):
         """Generate attn_3d during inference by calling Grounded-SAM-2 (API preferred)."""
+        print(f"[DEBUG] Entered _generate_attn_3d_inference with rgb_img shape: {rgb_img.shape if hasattr(rgb_img, 'shape') else 'no shape'}")
+
         try:
             import requests
             HAS_REQUESTS = True
@@ -141,7 +143,15 @@ class DexArtRunner(BaseRunner):
         if self.gs2_api_url and HAS_REQUESTS:
             try:
                 from PIL import Image
-                img_pil = Image.fromarray(rgb_img)
+                # Convert to uint8 and 0-255 range for PIL
+                if rgb_img.dtype != np.uint8:
+                    if rgb_img.max() <= 1.0:  # Assume 0-1 range
+                        rgb_img_uint8 = (rgb_img * 255).astype(np.uint8)
+                    else:  # Assume 0-255 range
+                        rgb_img_uint8 = rgb_img.astype(np.uint8)
+                else:
+                    rgb_img_uint8 = rgb_img
+                img_pil = Image.fromarray(rgb_img_uint8)
                 img_bytes = BytesIO()
                 img_pil.save(img_bytes, format="PNG")
                 img_bytes.seek(0)
@@ -158,24 +168,37 @@ class DexArtRunner(BaseRunner):
                     cprint(f"[GM2-API] Calling Grounded-SAM-2 API...", "cyan")
                 response = requests.post(api_url, json=payload, timeout=60)
                 if response.status_code != 200:
-                    return np.zeros((3, 1024), dtype=np.float32)
+                    raise RuntimeError(f"GS2 API call failed with status {response.status_code}: {response.text}")
                 mask_json = response.json()
                 attn_3d = self._build_attn_from_mask(point_cloud_with_uv, mask_json, img_res=img_res, n_points=1024, n_channels=3)
                 return attn_3d
-            except Exception:
+            except Exception as e:
+                cprint(f"GS2 API call failed: {e}, trying subprocess method...", "yellow")
                 return self._generate_attn_3d_via_subprocess(rgb_img, point_cloud_with_uv, img_res)
         else:
+            if not self.gs2_api_url:
+                raise RuntimeError("GS2_API_URL environment variable not set. Please start GS2 API server first.")
+            if not HAS_REQUESTS:
+                raise RuntimeError("requests library not available. Please install requests: pip install requests")
             return self._generate_attn_3d_via_subprocess(rgb_img, point_cloud_with_uv, img_res)
 
     def _generate_attn_3d_via_subprocess(self, rgb_img, point_cloud_with_uv, img_res=(84,84)):
         try:
             temp_img_path = os.path.join(self.temp_dir, f"temp_img_{os.getpid()}_{np.random.randint(0,1000000)}.png")
             temp_json_path = temp_img_path.replace(".png", ".json")
-            imageio.imwrite(temp_img_path, rgb_img)
+            # Convert to uint8 for imageio
+            if rgb_img.dtype != np.uint8:
+                if rgb_img.max() <= 1.0:  # Assume 0-1 range
+                    rgb_img_uint8 = (rgb_img * 255).astype(np.uint8)
+                else:  # Assume 0-255 range
+                    rgb_img_uint8 = rgb_img.astype(np.uint8)
+            else:
+                rgb_img_uint8 = rgb_img
+            imageio.imwrite(temp_img_path, rgb_img_uint8)
             script_path = os.path.abspath(self.gs2_script_path)
             gs2_root = os.path.dirname(script_path)
             if not os.path.exists(gs2_root):
-                return np.zeros((3,1024), dtype=np.float32)
+                raise RuntimeError(f"GS2 script directory not found: {gs2_root}")
             cmd = [
                 "conda", "run", "-n", self.gs2_conda_env,
                 "python", script_path,
@@ -216,12 +239,13 @@ class DexArtRunner(BaseRunner):
                         mask_json = json.load(f)
                     attn_3d = self._build_attn_from_mask(point_cloud_with_uv, mask_json, img_res=img_res, n_points=1024, n_channels=3)
                 else:
-                    attn_3d = np.zeros((3,1024), dtype=np.float32)
+                    stdout_text = '\n'.join(stdout_lines)
+                    raise RuntimeError(f"GS2 subprocess failed with return code {process.returncode}.\nGS2 output: {stdout_text}")
             except subprocess.TimeoutExpired:
                 process.kill()
-                attn_3d = np.zeros((3,1024), dtype=np.float32)
-            except Exception:
-                attn_3d = np.zeros((3,1024), dtype=np.float32)
+                raise RuntimeError(f"GS2 subprocess timed out after {timeout_seconds} seconds")
+            except Exception as e:
+                raise RuntimeError(f"GS2 subprocess failed: {e}")
             finally:
                 # cleanup temp files
                 for f in [temp_img_path, temp_json_path]:
@@ -230,9 +254,10 @@ class DexArtRunner(BaseRunner):
                             os.unlink(f)
                     except Exception:
                         pass
-            return attn_3d
+        except Exception as e:
+            # Handle any exception in the subprocess call
+            raise RuntimeError(f"GS2 subprocess call failed: {e}")
 
-        
     def run(self, policy: BasePolicy):
         device = policy.device
         dtype = policy.dtype
@@ -290,33 +315,85 @@ class DexArtRunner(BaseRunner):
                             # Generate attn_3d on the fly using Grounded-SAM-2 (API preferred)
                             rgb_img = None
                             try:
-                                # Try to render rgb image from env
-                                base_env = env_train.env
-                                while hasattr(base_env, 'env'):
-                                    base_env = base_env.env
-                                rgb_img = base_env.render('rgb_array')
-                            except Exception:
+                                # Try to get RGB image from DexArtEnv's visual observation
+                                # Navigate to find DexArtEnv (same logic as point cloud generation)
+                                current_env = env_train.env
+                                dexart_env_for_rgb = None
+                                while current_env is not None:
+                                    if type(current_env).__name__ == 'DexArtEnv':
+                                        dexart_env_for_rgb = current_env
+                                        break
+                                    elif hasattr(current_env, 'env'):
+                                        current_env = current_env.env
+                                    else:
+                                        break
+
+                                if dexart_env_for_rgb is not None:
+                                    # Try to get RGB from DexArtEnv's get_visual_observation method
+                                    try:
+                                        visual_obs = dexart_env_for_rgb.get_visual_observation()
+                                        print(f"[DEBUG] Visual obs from DexArtEnv keys: {list(visual_obs.keys())}")
+                                        rgb_img = visual_obs.get('instance_1-rgb')
+                                    except:
+                                        # Fallback to env.get_visual_observation()
+                                        visual_obs = dexart_env_for_rgb.env.get_visual_observation()
+                                        print(f"[DEBUG] Visual obs from env keys: {list(visual_obs.keys())}")
+                                        rgb_img = visual_obs.get('instance_1-rgb')
+
+                                    print(f"[DEBUG] Raw RGB from visual_obs: shape {rgb_img.shape if rgb_img is not None else None}, type: {type(rgb_img)}")
+                                    if rgb_img is not None:
+                                        print(f"[DEBUG] RGB shape[0]: {rgb_img.shape[0] if hasattr(rgb_img, 'shape') else 'no shape'}")
+                                        print(f"[DEBUG] RGB dtype: {rgb_img.dtype if hasattr(rgb_img, 'dtype') else 'no dtype'}")
+                                        print(f"[DEBUG] RGB range: [{rgb_img.min():.3f}, {rgb_img.max():.3f}]" if hasattr(rgb_img, 'min') else "[DEBUG] RGB has no min/max")
+
+                                        if hasattr(rgb_img, 'shape') and len(rgb_img.shape) >= 3 and rgb_img.shape[0] == 3:  # CHW to HWC
+                                            rgb_img = rgb_img.transpose(1, 2, 0)
+                                            print(f"[DEBUG] Transposed RGB to HWC: shape {rgb_img.shape}")
+                                        print(f"[DEBUG] Final RGB image: shape {rgb_img.shape}, dtype: {rgb_img.dtype}")
+                                    else:
+                                        print("[DEBUG] RGB image is None")
+                                else:
+                                    print("[DEBUG] Could not find DexArtEnv for RGB image")
+                            except Exception as e:
+                                print(f"[DEBUG] Failed to get RGB image: {e}")
                                 rgb_img = None
 
                             # Try to get point cloud with UV coordinates
                             point_cloud_full = None
                             try:
-                                # Use DexArt's point cloud generator to get point cloud with UV coordinates
-                                base_env = env_train.env
-                                while hasattr(base_env, 'env'):
-                                    base_env = base_env.env
+                                # Navigate through wrapper layers to find the DexArtEnv
+                                current_env = env_train.env
+                                dexart_env = None
 
-                                if hasattr(base_env, 'pc_generator'):
+                                # Unwrap layers: MultiStepWrapper -> SimpleVideoRecordingWrapper -> DexArtEnv
+                                # We want to stop at DexArtEnv level, not go deeper to BucketRLEnv
+                                while current_env is not None:
+                                    if type(current_env).__name__ == 'DexArtEnv':
+                                        # Found DexArtEnv, stop here
+                                        dexart_env = current_env
+                                        break
+                                    elif hasattr(current_env, 'env'):
+                                        current_env = current_env.env
+                                    else:
+                                        break
+
+                                if dexart_env is not None and hasattr(dexart_env, 'pc_generator'):
+                                    # Get current depth observation for point cloud generation
+                                    current_depth = np_obs_dict.get('depth', None)
+                                    print(f"[DEBUG] Depth in np_obs_dict shape: {current_depth.shape if current_depth is not None else None}")
+                                    print(f"[DEBUG] rgb_img shape before pc generation: {rgb_img.shape}")
                                     # Generate point cloud with UV coordinates using the generator
-                                    pc_with_uv = base_env.pc_generator.generate_point_cloud_with_uv(rgb_img)
+                                    pc_with_uv = dexart_env.pc_generator.generate_point_cloud_with_uv(rgb_img, current_depth)
+                                    print(f"[DEBUG] rgb_img shape after pc generation: {rgb_img.shape}")
                                     point_cloud_full = np.stack([pc_with_uv] * self.n_obs_steps, axis=0)
                                 else:
-                                    raise RuntimeError("DexArt environment does not have point cloud generator initialized.")
+                                    raise RuntimeError(f"DexArt environment does not have point cloud generator initialized. Found env: {type(dexart_env).__name__ if dexart_env else 'None'}")
                             except Exception as e:
                                 raise RuntimeError(f"Failed to generate point cloud with UV coordinates for attn_3d generation: {e}")
 
                             # Generate attn_3d for timesteps if possible
                             if rgb_img is not None and point_cloud_full is not None:
+                                print(f"[DEBUG] About to call GS2 with rgb_img shape: {rgb_img.shape}, dtype: {rgb_img.dtype}, id: {id(rgb_img)}")
                                 T = point_cloud_full.shape[0]
                                 attn_3d_list = []
                                 for t in range(T):
@@ -324,6 +401,8 @@ class DexArtRunner(BaseRunner):
                                     if pc_t.shape[-1] < 8:
                                         attn_3d_t = np.zeros((3, 1024), dtype=np.float32)
                                     else:
+                                        print(f"[DEBUG] Calling GS2 inference with rgb_img shape: {rgb_img.shape}, id: {id(rgb_img)}")
+                                        assert rgb_img.shape == (84, 84, 3), f"rgb_img has wrong shape: {rgb_img.shape}"
                                         attn_3d_t = self._generate_attn_3d_inference(rgb_img, pc_t, img_res=rgb_img.shape[:2])
                                     attn_3d_list.append(attn_3d_t)
                                 attn_3d = np.stack(attn_3d_list, axis=0)  # (T, C, N)
