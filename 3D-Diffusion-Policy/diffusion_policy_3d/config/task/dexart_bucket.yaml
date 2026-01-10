@@ -17,6 +17,9 @@ shape_meta: &shape_meta
     agent_pos:
       shape: [33]
       type: low_dim
+    attn_3d:
+      shape: [3, 1024]
+      type: spatial
   action:
     shape: [22]
 
@@ -31,7 +34,8 @@ env_runner:
 
 dataset:
   _target_: diffusion_policy_3d.dataset.dexart_dataset.DexArtDataset
-  zarr_path: data/dexart_bucket_expert.zarr
+  zarr_path: data/dexart_bucket_expert_attn3d.zarr
+  use_attn_3d: true
   horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
