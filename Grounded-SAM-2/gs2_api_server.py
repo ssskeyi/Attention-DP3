@@ -72,7 +72,19 @@ def load_models(
         if ":" in device:
             # Format: cuda:0, cuda:1, etc.
             device_id = int(device.split(":")[1])
-            if device_id >= torch.cuda.device_count():
+            # When CUDA_VISIBLE_DEVICES is set, device IDs are remapped
+            # So we should check if the requested device is within available devices
+            # or if CUDA_VISIBLE_DEVICES is set, use device 0 for any valid cuda:X
+            cuda_visible_devices = os.environ.get('CUDA_VISIBLE_DEVICES')
+            if cuda_visible_devices is not None:
+                # When CUDA_VISIBLE_DEVICES is set, PyTorch sees remapped devices
+                # We should use device 0 for the visible device
+                actual_device_id = 0
+                physical_device_id = int(cuda_visible_devices.split(',')[0]) if cuda_visible_devices else 0
+                print(f"[GS2-API] CUDA_VISIBLE_DEVICES={cuda_visible_devices}, using remapped device {actual_device_id} (physical device {physical_device_id})")
+                device = f"cuda:{actual_device_id}"
+                device_id = actual_device_id
+            elif device_id >= torch.cuda.device_count():
                 raise ValueError(f"CUDA device {device_id} not available. Available devices: 0-{torch.cuda.device_count()-1}")
             print(f"[GS2-API] Using CUDA device {device_id}: {torch.cuda.get_device_name(device_id)}")
         else:

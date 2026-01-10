@@ -70,11 +70,11 @@ total_start=$(date +%s)
 for task in "${TASKS_ARRAY[@]}"; do
   task_start=$(date +%s)
   if [[ "${task}" == *_no_attn ]]; then
-    addition_info="1221mw"
+    addition_info="0109mw"
     # DP3任务不需要GS2 API URL
     task_extra_args="${EXTRA_ARGS}"
   else
-    addition_info="1221mwaedp3"
+    addition_info="0109mwaedp3"
     # GS2任务需要设置GS2 API URL环境变量
     export GS2_API_URL="http://127.0.0.1:${GS2_PORT}"
     task_extra_args="${EXTRA_ARGS}"

@@ -6,23 +6,23 @@ bash scripts/make_metaworld_datasets.sh
 
 # 终端2: GPU0的GS2服务器 (端口5000)
 cd Grounded-SAM-2
-CUDA_VISIBLE_DEVICES=0 conda run -n aedp3_vis python gs2_api_server.py --device cuda:0 --port 5000
+CUDA_VISIBLE_DEVICES=0 python gs2_api_server.py --device cuda:0 --port 5000
 
 # 终端3: GPU1的GS2服务器 (端口5001)
 cd Grounded-SAM-2
-CUDA_VISIBLE_DEVICES=1 conda run -n aedp3_vis python gs2_api_server.py --device cuda:1 --port 5001
+CUDA_VISIBLE_DEVICES=1 python gs2_api_server.py --device cuda:1 --port 5001
 
 # 终端4: GPU2的GS2服务器 (端口5002)
 cd Grounded-SAM-2
-CUDA_VISIBLE_DEVICES=2 conda run -n aedp3_vis python gs2_api_server.py --device cuda:2 --port 5002
+CUDA_VISIBLE_DEVICES=2 python gs2_api_server.py --device cuda:2 --port 5002
 
 # 终端5: GPU3的GS2服务器 (端口5003)
 cd Grounded-SAM-2
-CUDA_VISIBLE_DEVICES=3 conda run -n aedp3_vis python gs2_api_server.py --device cuda:3 --port 5003
+CUDA_VISIBLE_DEVICES=3 python gs2_api_server.py --device cuda:3 --port 5003
 
 # 终端6: GPU4的GS2服务器 (端口5004)
 cd Grounded-SAM-2
-CUDA_VISIBLE_DEVICES=4 conda run -n aedp3_vis python gs2_api_server.py --device cuda:4 --port 5004
+CUDA_VISIBLE_DEVICES=4 python gs2_api_server.py --device cuda:4 --port 5004
 
 # 终端7: GPU0训练GS2任务 (pick-place, sweep)
 export CUDA_VISIBLE_DEVICES=0
@@ -67,4 +67,28 @@ export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5004
 export TASKS="metaworld_reach"
+bash scripts/train_all_metaworld.sh
+
+# 终端12: GPU5训练DP3任务 (3个任务)
+export CUDA_VISIBLE_DEVICES=5
+export GPU_ID=5
+export SEED=0
+export CONFIG_NAME=dp3
+export TASKS="metaworld_pick-place_no_attn metaworld_sweep_no_attn metaworld_shelf-place_no_attn"
+bash scripts/train_all_metaworld.sh
+
+# 终端13: GPU6训练DP3任务 (3个任务)
+export CUDA_VISIBLE_DEVICES=6
+export GPU_ID=6
+export SEED=0
+export CONFIG_NAME=dp3
+export TASKS="metaworld_soccer_no_attn metaworld_stick-pull_no_attn metaworld_box-close_no_attn"
+bash scripts/train_all_metaworld.sh
+
+# 终端14: GPU7训练DP3任务 (3个任务)
+export CUDA_VISIBLE_DEVICES=7
+export GPU_ID=7
+export SEED=0
+export CONFIG_NAME=dp3
+export TASKS="metaworld_bin-picking_no_attn metaworld_disassemble_no_attn metaworld_reach_no_attn"
 bash scripts/train_all_metaworld.sh
