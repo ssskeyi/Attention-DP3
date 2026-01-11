@@ -10,10 +10,16 @@ set -euo pipefail
 # 环境变量：
 #   DEVICE (默认 cuda)        : gs2 推理设备
 #   ROOT (默认当前仓库根)
-#   MAX_EP (默认 10)
+#   MAX_EP (默认 10)          : 默认最大episode数，任务特定设置会覆盖此值
 #   N_POINTS (默认 1024)      : DexArt使用1024点云
 #   TASKS (默认 "bucket faucet laptop toilet")
 #   GS2_CONDA_ENV (默认 aedp3_vis)
+#   GS2_PORT (可选)           : GS2 API服务器端口，如果设置则使用API模式，否则使用本地推理
+#   GS2_API_URL (可选)        : 完整的GS2 API URL，如果设置则覆盖GS2_PORT设置
+#
+# 帧数设置：
+#   - bucket: 100帧 (horizon = 100)
+#   - faucet/laptop/toilet: 250帧 (horizon = 250)
 
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
 DEVICE="${DEVICE:-cuda}"
@@ -22,6 +28,15 @@ N_POINTS="${N_POINTS:-1024}"
 TASKS="${TASKS:-bucket faucet laptop toilet}"
 GS2_DIR="${GS2_DIR:-${ROOT}/Grounded-SAM-2}"
 GS2_CONDA_ENV="${GS2_CONDA_ENV:-aedp3_vis}"
+GS2_PORT="${GS2_PORT:-}"
+GS2_API_URL="${GS2_API_URL:-}"
+
+# Determine GS2 API URL
+if [[ -n "${GS2_API_URL}" ]]; then
+  GS2_API_URL="${GS2_API_URL}"
+elif [[ -n "${GS2_PORT}" ]]; then
+  GS2_API_URL="http://127.0.0.1:${GS2_PORT}"
+fi
 
 log() { echo -e "[make_dexart] $*"; }
 
@@ -37,11 +52,26 @@ export_frames() {
   local task="$1"
   local zarr="${ROOT}/3D-Diffusion-Policy/data/dexart_${task}_expert.zarr"
   local out_dir="${ROOT}/3D-Diffusion-Policy/export/dexart_${task}_frames"
-  log "导出帧: ${task} -> ${out_dir}"
+
+  # 根据任务设置合适的帧数上限
+  local task_max_ep
+  case "${task}" in
+    bucket)
+      task_max_ep=100  # bucket horizon = 100
+      ;;
+    faucet|laptop|toilet)
+      task_max_ep=250  # faucet/laptop/toilet horizon = 250
+      ;;
+    *)
+      task_max_ep="${MAX_EP}"  # 使用默认值作为fallback
+      ;;
+  esac
+
+  log "导出帧: ${task} -> ${out_dir} (max_ep=${task_max_ep})"
   python "${ROOT}/scripts/export_adroit_frames.py" \
     --zarr "${zarr}" \
     --out_dir "${out_dir}" \
-    --max_episodes "${MAX_EP}"
+    --max_episodes "${task_max_ep}"
 }
 
 gs2_for_task() {
@@ -53,10 +83,10 @@ gs2_for_task() {
   task_to_prompt() {
     local t="$1"
     case "${t}" in
-      bucket) echo "bucket. water bucket." ;;
-      faucet) echo "faucet. water faucet." ;;
-      laptop) echo "laptop. laptop computer." ;;
-      toilet) echo "toilet. toilet bowl." ;;
+      bucket) echo "bucket." ;;
+      faucet) echo "faucet." ;;
+      laptop) echo "laptop." ;;
+      toilet) echo "toilet." ;;
       *) echo "${t}" ;; # fallback: pass through
     esac
   }
@@ -67,11 +97,14 @@ gs2_for_task() {
   if [[ -n "${GS2_CONDA_ENV:-}" ]]; then
     runner=(conda run -n "${GS2_CONDA_ENV}")
   fi
-  GS2_DIR="${GS2_DIR}" "${runner[@]}" bash "${ROOT}/scripts/gs2.sh" \
-    "${frames_root}" \
-    "${output_root}" \
-    "${text_prompt}" \
-    "${DEVICE}"
+
+  # Prepare gs2.sh arguments
+  gs2_args=("${frames_root}" "${output_root}" "${text_prompt}" "${DEVICE}")
+  if [[ -n "${GS2_API_URL}" ]]; then
+    gs2_args+=("${GS2_API_URL}")
+  fi
+
+  GS2_DIR="${GS2_DIR}" "${runner[@]}" bash "${ROOT}/scripts/gs2.sh" "${gs2_args[@]}"
 }
 
 convert_attn_zarr() {
@@ -92,6 +125,11 @@ main() {
   log "ROOT=${ROOT}"
   log "TASKS=${TASKS}"
   log "MAX_EP=${MAX_EP}, N_POINTS=${N_POINTS}"
+  if [[ -n "${GS2_API_URL}" ]]; then
+    log "GS2_MODE=API, GS2_API_URL=${GS2_API_URL}"
+  else
+    log "GS2_MODE=LOCAL"
+  fi
   for task in ${TASKS}; do
     gen_demo "${task}"
     export_frames "${task}"

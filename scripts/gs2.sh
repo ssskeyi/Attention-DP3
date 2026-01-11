@@ -6,6 +6,7 @@ set -euo pipefail
 #   $2 output_root (默认 ../3D-Diffusion-Policy/export_gs2/adroit_door)
 #   $3 text prompt (默认 "door handle. door.")
 #   $4 device (默认 cuda)
+#   $5 api_url (可选, 如果设置则使用API模式)
 
 ROOT_DIR="$(cd "$(dirname "$0")/.."; pwd)"
 GS2_DIR="${GS2_DIR:-${ROOT_DIR}/Grounded-SAM-2}"
@@ -25,6 +26,7 @@ fi
 
 TEXT_PROMPT="${3:-door handle. door.}"
 DEVICE="${4:-cuda}"
+API_URL="${5:-}"
 
 echo "[gs2.sh] ROOT_DIR: ${ROOT_DIR}"
 echo "[gs2.sh] GS2_DIR: ${GS2_DIR}"
@@ -32,6 +34,11 @@ echo "[gs2.sh] FRAMES_ROOT: ${FRAMES_ROOT}"
 echo "[gs2.sh] OUTPUT_ROOT: ${OUTPUT_ROOT}"
 echo "[gs2.sh] TEXT_PROMPT: ${TEXT_PROMPT}"
 echo "[gs2.sh] DEVICE: ${DEVICE}"
+if [[ -n "${API_URL}" ]]; then
+  echo "[gs2.sh] API_URL: ${API_URL} (API mode)"
+else
+  echo "[gs2.sh] MODE: Local inference"
+fi
 
 if [ ! -d "${FRAMES_ROOT}" ]; then
   echo "[ERROR] FRAMES_ROOT does not exist: ${FRAMES_ROOT}"
@@ -57,6 +64,7 @@ python batch_grounded_sam2.py \
   --gdino_ckpt gdino_checkpoints/groundingdino_swinb_cogcoor.pth \
   --device "${DEVICE}" \
   --box_thr 0.25 \
-  --text_thr 0.15
+  --text_thr 0.15 \
+  ${API_URL:+--api_url "${API_URL}"}
 
 echo "[gs2.sh] Finished!"

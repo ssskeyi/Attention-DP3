@@ -87,10 +87,10 @@ class DexArtRunner(BaseRunner):
     def _get_text_prompt_for_task(self, task_name):
         """Get text prompt for Grounded-SAM-2 based on task name."""
         prompts = {
-            'bucket': 'bucket. water bucket.',
-            'faucet': 'faucet. water faucet.',
-            'laptop': 'laptop. laptop computer.',
-            'toilet': 'toilet. toilet bowl.'
+            'bucket': 'bucket.',
+            'faucet': 'faucet.',
+            'laptop': 'laptop.',
+            'toilet': 'toilet.'
         }
         return prompts.get(task_name, task_name)
 
