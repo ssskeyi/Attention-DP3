@@ -86,7 +86,7 @@ for task in "${TASKS_ARRAY[@]}"; do
                             exp_name=${exp_name} \
                             logging.mode=${wandb_mode} \
                             logging.name=${run_name} \
-                            logging.project=aedp3_dexart_cmp_0110 \
+                            logging.project=aedp3_dexart_cmp_0111 \
                             checkpoint.save_ckpt=${save_ckpt} \
                             ${task_extra_args}
   task_end=$(date +%s)

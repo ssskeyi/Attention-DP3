@@ -132,7 +132,7 @@ class DexArtRunner(BaseRunner):
 
     def _generate_attn_3d_inference(self, rgb_img, point_cloud_with_uv, img_res=(84, 84)):
         """Generate attn_3d during inference by calling Grounded-SAM-2 (API preferred)."""
-        print(f"[DEBUG] Entered _generate_attn_3d_inference with rgb_img shape: {rgb_img.shape if hasattr(rgb_img, 'shape') else 'no shape'}")
+        # print(f"[DEBUG] Entered _generate_attn_3d_inference with rgb_img shape: {rgb_img.shape if hasattr(rgb_img, 'shape') else 'no shape'}")
 
         try:
             import requests
@@ -257,7 +257,7 @@ class DexArtRunner(BaseRunner):
         except Exception as e:
             # Handle any exception in the subprocess call
             raise RuntimeError(f"GS2 subprocess call failed: {e}")
-
+        
     def run(self, policy: BasePolicy):
         device = policy.device
         dtype = policy.dtype
@@ -332,30 +332,30 @@ class DexArtRunner(BaseRunner):
                                     # Try to get RGB from DexArtEnv's get_visual_observation method
                                     try:
                                         visual_obs = dexart_env_for_rgb.get_visual_observation()
-                                        print(f"[DEBUG] Visual obs from DexArtEnv keys: {list(visual_obs.keys())}")
+                                        # print(f"[DEBUG] Visual obs from DexArtEnv keys: {list(visual_obs.keys())}")
                                         rgb_img = visual_obs.get('instance_1-rgb')
                                     except:
                                         # Fallback to env.get_visual_observation()
                                         visual_obs = dexart_env_for_rgb.env.get_visual_observation()
-                                        print(f"[DEBUG] Visual obs from env keys: {list(visual_obs.keys())}")
+                                        # print(f"[DEBUG] Visual obs from env keys: {list(visual_obs.keys())}")
                                         rgb_img = visual_obs.get('instance_1-rgb')
 
-                                    print(f"[DEBUG] Raw RGB from visual_obs: shape {rgb_img.shape if rgb_img is not None else None}, type: {type(rgb_img)}")
+                                    # print(f"[DEBUG] Raw RGB from visual_obs: shape {rgb_img.shape if rgb_img is not None else None}, type: {type(rgb_img)}")
                                     if rgb_img is not None:
-                                        print(f"[DEBUG] RGB shape[0]: {rgb_img.shape[0] if hasattr(rgb_img, 'shape') else 'no shape'}")
-                                        print(f"[DEBUG] RGB dtype: {rgb_img.dtype if hasattr(rgb_img, 'dtype') else 'no dtype'}")
-                                        print(f"[DEBUG] RGB range: [{rgb_img.min():.3f}, {rgb_img.max():.3f}]" if hasattr(rgb_img, 'min') else "[DEBUG] RGB has no min/max")
+                                        # print(f"[DEBUG] RGB shape[0]: {rgb_img.shape[0] if hasattr(rgb_img, 'shape') else 'no shape'}")
+                                        # print(f"[DEBUG] RGB dtype: {rgb_img.dtype if hasattr(rgb_img, 'dtype') else 'no dtype'}")
+                                        # print(f"[DEBUG] RGB range: [{rgb_img.min():.3f}, {rgb_img.max():.3f}]" if hasattr(rgb_img, 'min') else "[DEBUG] RGB has no min/max")
 
                                         if hasattr(rgb_img, 'shape') and len(rgb_img.shape) >= 3 and rgb_img.shape[0] == 3:  # CHW to HWC
                                             rgb_img = rgb_img.transpose(1, 2, 0)
-                                            print(f"[DEBUG] Transposed RGB to HWC: shape {rgb_img.shape}")
-                                        print(f"[DEBUG] Final RGB image: shape {rgb_img.shape}, dtype: {rgb_img.dtype}")
-                                    else:
-                                        print("[DEBUG] RGB image is None")
-                                else:
-                                    print("[DEBUG] Could not find DexArtEnv for RGB image")
+                                            # print(f"[DEBUG] Transposed RGB to HWC: shape {rgb_img.shape}")
+                                        # print(f"[DEBUG] Final RGB image: shape {rgb_img.shape}, dtype: {rgb_img.dtype}")
+                                    # else:
+                                        # print("[DEBUG] RGB image is None")
+                                # else:
+                                    # print("[DEBUG] Could not find DexArtEnv for RGB image")
                             except Exception as e:
-                                print(f"[DEBUG] Failed to get RGB image: {e}")
+                                # print(f"[DEBUG] Failed to get RGB image: {e}")
                                 rgb_img = None
 
                             # Try to get point cloud with UV coordinates
@@ -380,11 +380,11 @@ class DexArtRunner(BaseRunner):
                                 if dexart_env is not None and hasattr(dexart_env, 'pc_generator'):
                                     # Get current depth observation for point cloud generation
                                     current_depth = np_obs_dict.get('depth', None)
-                                    print(f"[DEBUG] Depth in np_obs_dict shape: {current_depth.shape if current_depth is not None else None}")
-                                    print(f"[DEBUG] rgb_img shape before pc generation: {rgb_img.shape}")
+                                    # print(f"[DEBUG] Depth in np_obs_dict shape: {current_depth.shape if current_depth is not None else None}")
+                                    # print(f"[DEBUG] rgb_img shape before pc generation: {rgb_img.shape}")
                                     # Generate point cloud with UV coordinates using the generator
                                     pc_with_uv = dexart_env.pc_generator.generate_point_cloud_with_uv(rgb_img, current_depth)
-                                    print(f"[DEBUG] rgb_img shape after pc generation: {rgb_img.shape}")
+                                    # print(f"[DEBUG] rgb_img shape after pc generation: {rgb_img.shape}")
                                     point_cloud_full = np.stack([pc_with_uv] * self.n_obs_steps, axis=0)
                                 else:
                                     raise RuntimeError(f"DexArt environment does not have point cloud generator initialized. Found env: {type(dexart_env).__name__ if dexart_env else 'None'}")
@@ -393,7 +393,7 @@ class DexArtRunner(BaseRunner):
 
                             # Generate attn_3d for timesteps if possible
                             if rgb_img is not None and point_cloud_full is not None:
-                                print(f"[DEBUG] About to call GS2 with rgb_img shape: {rgb_img.shape}, dtype: {rgb_img.dtype}, id: {id(rgb_img)}")
+                                # print(f"[DEBUG] About to call GS2 with rgb_img shape: {rgb_img.shape}, dtype: {rgb_img.dtype}, id: {id(rgb_img)}")
                                 T = point_cloud_full.shape[0]
                                 attn_3d_list = []
                                 for t in range(T):
@@ -401,7 +401,7 @@ class DexArtRunner(BaseRunner):
                                     if pc_t.shape[-1] < 8:
                                         attn_3d_t = np.zeros((3, 1024), dtype=np.float32)
                                     else:
-                                        print(f"[DEBUG] Calling GS2 inference with rgb_img shape: {rgb_img.shape}, id: {id(rgb_img)}")
+                                        # print(f"[DEBUG] Calling GS2 inference with rgb_img shape: {rgb_img.shape}, id: {id(rgb_img)}")
                                         assert rgb_img.shape == (84, 84, 3), f"rgb_img has wrong shape: {rgb_img.shape}"
                                         attn_3d_t = self._generate_attn_3d_inference(rgb_img, pc_t, img_res=rgb_img.shape[:2])
                                     attn_3d_list.append(attn_3d_t)

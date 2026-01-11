@@ -17,7 +17,7 @@ set -euo pipefail
 
 ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
 DEVICE="${DEVICE:-cuda}"
-MAX_EP="${MAX_EP:-10}"
+MAX_EP="${MAX_EP:-100}"
 N_POINTS="${N_POINTS:-1024}"
 TASKS="${TASKS:-bucket faucet laptop toilet}"
 GS2_DIR="${GS2_DIR:-${ROOT}/Grounded-SAM-2}"

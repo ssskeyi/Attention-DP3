@@ -218,12 +218,12 @@ class DexArtPointCloudGenerator:
         visual_obs = self.env.get_visual_observation()
 
         # Debug: check what keys are available in visual observation
-        print(f"[DEBUG] Available visual obs keys: {list(visual_obs.keys())}")
-        for key, value in visual_obs.items():
-            if isinstance(value, np.ndarray):
-                print(f"[DEBUG] {key}: shape {value.shape}, dtype {value.dtype}, range [{value.min():.3f}, {value.max():.3f}]")
-            else:
-                print(f"[DEBUG] {key}: {type(value)}")
+        # print(f"[DEBUG] Available visual obs keys: {list(visual_obs.keys())}")
+        # for key, value in visual_obs.items():
+        #     if isinstance(value, np.ndarray):
+        #         print(f"[DEBUG] {key}: shape {value.shape}, dtype {value.dtype}, range [{value.min():.3f}, {value.max():.3f}]")
+        #     else:
+        #         print(f"[DEBUG] {key}: {type(value)}")
 
         # Get depth image for 3D reconstruction (similar to MetaWorld approach)
         depth_img = visual_obs['instance_1-depth']  # (84, 84) or (2, 84, 84)
@@ -232,8 +232,8 @@ class DexArtPointCloudGenerator:
         if depth_img.ndim == 3 and depth_img.shape[0] == 2:
             depth_img = depth_img[0]  # Take first channel
 
-        print(f"[DEBUG] Using depth-based reconstruction instead of DexArt point cloud")
-        print(f"[DEBUG] Depth shape: {depth_img.shape}, range: [{depth_img.min():.3f}, {depth_img.max():.3f}]")
+        # print(f"[DEBUG] Using depth-based reconstruction instead of DexArt point cloud")
+        # print(f"[DEBUG] Depth shape: {depth_img.shape}, range: [{depth_img.min():.3f}, {depth_img.max():.3f}]")
 
         # Reconstruct 3D points from depth image (in camera coordinates)
         # This follows the standard camera projection model
@@ -268,7 +268,7 @@ class DexArtPointCloudGenerator:
             u_coords_flat = u_coords_flat[indices]
             v_coords_flat = v_coords_flat[indices]
 
-        print(f"[DEBUG] Reconstructed {len(points_3d)} points from depth image")
+        # print(f"[DEBUG] Reconstructed {len(points_3d)} points from depth image")
 
         # Get RGB image for color information
         if rgb_img is None:
@@ -278,7 +278,7 @@ class DexArtPointCloudGenerator:
 
         # Convert RGB to float and normalize to [0, 1]
         rgb_img_float = rgb_img.astype(np.float32) / 255.0
-        print(f"[DEBUG] RGB image shape: {rgb_img_float.shape}, dtype: {rgb_img_float.dtype}")
+        # print(f"[DEBUG] RGB image shape: {rgb_img_float.shape}, dtype: {rgb_img_float.dtype}")
 
         # UV coordinates are directly available from depth reconstruction
         # Since we reconstructed from depth, UV coords are just normalized pixel coordinates
@@ -288,10 +288,10 @@ class DexArtPointCloudGenerator:
         # All reconstructed points should be valid (we filtered zero depth already)
         valid_mask = np.ones(len(points_3d), dtype=bool)
 
-        print(f"[DEBUG] UV coordinates from depth reconstruction:")
-        print(f"[DEBUG] u_norm range: [{u_norm.min():.3f}, {u_norm.max():.3f}]")
-        print(f"[DEBUG] v_norm range: [{v_norm.min():.3f}, {v_norm.max():.3f}]")
-        print(f"[DEBUG] All points valid: {valid_mask.sum()}/{len(valid_mask)}")
+        # print(f"[DEBUG] UV coordinates from depth reconstruction:")
+        # print(f"[DEBUG] u_norm range: [{u_norm.min():.3f}, {u_norm.max():.3f}]")
+        # print(f"[DEBUG] v_norm range: [{v_norm.min():.3f}, {v_norm.max():.3f}]")
+        # print(f"[DEBUG] All points valid: {valid_mask.sum()}/{len(valid_mask)}")
 
         # For points within image bounds, sample colors from RGB image
         colors = np.zeros((len(points_3d), 3), dtype=np.float32)
@@ -306,8 +306,8 @@ class DexArtPointCloudGenerator:
         # For invalid projections, set default color
         colors[~valid_mask] = np.array([0.5, 0.5, 0.5])  # Gray for invalid points
 
-        print(f"[DEBUG] UV range: u[{u_norm.min():.3f}, {u_norm.max():.3f}], v[{v_norm.min():.3f}, {v_norm.max():.3f}]")
-        print(f"[DEBUG] Valid projections: {valid_mask.sum()}/{len(valid_mask)}")
+        # print(f"[DEBUG] UV range: u[{u_norm.min():.3f}, {u_norm.max():.3f}], v[{v_norm.min():.3f}, {v_norm.max():.3f}]")
+        # print(f"[DEBUG] Valid projections: {valid_mask.sum()}/{len(valid_mask)}")
 
         # Combine into final point cloud (N, 8): [x, y, z, r, g, b, u, v]
         point_cloud = np.column_stack([
@@ -317,6 +317,6 @@ class DexArtPointCloudGenerator:
             v_norm          # v (normalized UV)
         ])
 
-        print(f"[DEBUG] Final point cloud shape: {point_cloud.shape}")
+        # print(f"[DEBUG] Final point cloud shape: {point_cloud.shape}")
 
         return point_cloud

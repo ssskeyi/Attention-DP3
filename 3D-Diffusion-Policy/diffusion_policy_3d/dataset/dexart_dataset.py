@@ -12,7 +12,7 @@ from termcolor import cprint
 
 class DexArtDataset(BaseDataset):
     def __init__(self,
-            zarr_path,
+            zarr_path, 
             horizon=1,
             pad_before=0,
             pad_after=0,
@@ -141,7 +141,7 @@ class DexArtDataset(BaseDataset):
         if robot_obs is None:
             # If no robot observation available, create a placeholder
             robot_obs = np.zeros((point_cloud.shape[0], 96, 7), dtype=np.float32)
-
+        
         data = {
             'obs': {
                 'point_cloud': point_cloud, # T, 1024, 3
