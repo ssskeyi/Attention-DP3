@@ -24,24 +24,43 @@ EXTRA_ARGS="${EXTRA_ARGS:-}"
 
 # 默认任务列表
 DEFAULT_TASKS=(
-  metaworld_pick-place_no_attn
-  metaworld_sweep_no_attn
-  metaworld_shelf-place_no_attn
-  metaworld_soccer_no_attn
-  metaworld_stick-pull_no_attn
-  metaworld_box-close_no_attn
-  metaworld_bin-picking_no_attn
-  metaworld_disassemble_no_attn
-  metaworld_reach_no_attn
-  metaworld_pick-place
-  metaworld_sweep
-  metaworld_shelf-place
-  metaworld_soccer
-  metaworld_stick-pull
-  metaworld_box-close
-  metaworld_bin-picking
-  metaworld_disassemble
-  metaworld_reach
+  # 之前运行过的任务，已注释掉
+  # metaworld_pick-place_no_attn
+  # metaworld_sweep_no_attn
+  # metaworld_shelf-place_no_attn
+  # metaworld_soccer_no_attn
+  # metaworld_stick-pull_no_attn
+  # metaworld_box-close_no_attn
+  # metaworld_bin-picking_no_attn
+  # metaworld_disassemble_no_attn
+  # metaworld_reach_no_attn
+  # metaworld_pick-place
+  # metaworld_sweep
+  # metaworld_shelf-place
+  # metaworld_soccer
+  # metaworld_stick-pull
+  # metaworld_box-close
+  # metaworld_bin-picking
+  # metaworld_disassemble
+  # metaworld_reach
+
+  # 新增任务
+  metaworld_pick-place-wall_no_attn
+  metaworld_push_no_attn
+  metaworld_push-back_no_attn
+  metaworld_pick-out-of-hole_no_attn
+  metaworld_hand-insert_no_attn
+  metaworld_assembly_no_attn
+  metaworld_push-wall_no_attn
+  metaworld_peg-insert-side_no_attn
+  metaworld_pick-place-wall
+  metaworld_push
+  metaworld_push-back
+  metaworld_pick-out-of-hole
+  metaworld_hand-insert
+  metaworld_assembly
+  metaworld_push-wall
+  metaworld_peg-insert-side
 )
 
 # 如果设置了TASKS环境变量，使用它；否则使用默认任务

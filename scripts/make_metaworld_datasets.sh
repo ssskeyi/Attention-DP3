@@ -18,7 +18,8 @@ ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
 DEVICE="${DEVICE:-cuda}"
 MAX_EP="${MAX_EP:-10}"
 N_POINTS="${N_POINTS:-512}"
-TASKS="${TASKS:-hammer pick-place window-open window-close sweep sweep-into stick-push stick-pull soccer shelf-place box-close bin-picking disassemble reach}"
+# TASKS="${TASKS:-hammer pick-place window-open window-close sweep sweep-into stick-push stick-pull soccer shelf-place box-close bin-picking disassemble reach pick-place-wall push push-back pick-out-of-hole hand-insert assembly push-wall peg-insert-side}"
+TASKS="${TASKS:-pick-place-wall push push-back pick-out-of-hole hand-insert assembly push-wall peg-insert-side}"
 GS2_DIR="${GS2_DIR:-${ROOT}/Grounded-SAM-2}"
 GS2_CONDA_ENV="${GS2_CONDA_ENV:-aedp3_vis}"
 
@@ -62,6 +63,15 @@ gs2_for_task() {
       bin-picking) echo "bin. a little green rectangular prism." ;;
       disassemble) echo "a ring with handle." ;;
       reach) echo "red robotic arm." ;;
+      # 新增任务的prompt
+      pick-place-wall) echo "a little red rectangular prism. wall." ;;
+      push) echo "a little rectangular prism." ;;
+      push-back) echo "a little rectangular prism." ;;
+      pick-out-of-hole) echo "hole. a little rectangular prism." ;;
+      hand-insert) echo "hand. rectangular prism." ;;
+      assembly) echo "assembly. peg. ring." ;;
+      push-wall) echo "a little rectangular prism. wall." ;;
+      peg-insert-side) echo "peg. hole." ;;
       *) echo "${t}" ;; # fallback: pass through
     esac
   }
