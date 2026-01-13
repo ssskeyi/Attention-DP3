@@ -19,7 +19,7 @@ DEVICE="${DEVICE:-cuda}"
 MAX_EP="${MAX_EP:-10}"
 N_POINTS="${N_POINTS:-512}"
 # TASKS="${TASKS:-hammer pick-place window-open window-close sweep sweep-into stick-push stick-pull soccer shelf-place box-close bin-picking disassemble reach pick-place-wall push push-back pick-out-of-hole hand-insert assembly push-wall peg-insert-side}"
-TASKS="${TASKS:-pick-place-wall push push-back pick-out-of-hole hand-insert assembly push-wall peg-insert-side}"
+TASKS="${TASKS:-pick-out-of-hole hand-insert assembly push-wall peg-insert-side}"
 GS2_DIR="${GS2_DIR:-${ROOT}/Grounded-SAM-2}"
 GS2_CONDA_ENV="${GS2_CONDA_ENV:-aedp3_vis}"
 

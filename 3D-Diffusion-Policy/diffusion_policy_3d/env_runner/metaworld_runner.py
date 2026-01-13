@@ -121,7 +121,16 @@ class MetaworldRunner(BaseRunner):
             'box-close': 'lid. box.',
             'bin-picking': 'bin. a little green rectangular prism.',
             'disassemble': 'a ring with handle.',
-            'reach': 'red robotic arm.'
+            'reach': 'red robotic arm.',
+            # 新增任务的prompts
+            'pick-place-wall': 'a little red rectangular prism. wall.',
+            'push': 'a little rectangular prism.',
+            'push-back': 'a little rectangular prism.',
+            'pick-out-of-hole': 'hole. a little rectangular prism.',
+            'hand-insert': 'hand. rectangular prism.',
+            'assembly': 'assembly. peg. ring.',
+            'push-wall': 'a little rectangular prism. wall.',
+            'peg-insert-side': 'peg. hole.'
         }
         return prompts.get(task_name, 'object.')  # Default fallback
 

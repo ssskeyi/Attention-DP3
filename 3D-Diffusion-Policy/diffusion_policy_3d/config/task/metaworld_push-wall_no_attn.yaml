@@ -29,7 +29,7 @@ env_runner:
 dataset:
   _target_: diffusion_policy_3d.dataset.metaworld_dataset.MetaworldDataset
   zarr_path: data/metaworld_push-wall_expert.zarr
-    horizon: ${horizon}
+  horizon: ${horizon}
   pad_before: ${eval:'${n_obs_steps}-1'}
   pad_after: ${eval:'${n_action_steps}-1'}
   seed: 42

@@ -8,7 +8,7 @@ ROOT="${ROOT:-$(cd "$(dirname "$0")/.."; pwd)}"
 VIS_ROOT="${VIS_ROOT:-${ROOT}/vis_res_metaworld}"
 
 # 实验配置（与make_metaworld_datasets.sh保持一致）
-TASKS="${TASKS:-hammer pick-place window-open window-close sweep sweep-into stick-push stick-pull soccer shelf-place box-close bin-picking disassemble reach}"
+TASKS="${TASKS:-pick-place-wall push push-back pick-out-of-hole hand-insert assembly push-wall peg-insert-side}"
 MAX_EP="${MAX_EP:-10}"
 
 log() { echo -e "[visualize_metaworld] $*"; }
