@@ -230,7 +230,7 @@ class AdroitEnv:
     # a wrapper class that will make Adroit env looks like a dmc env
     def __init__(self, env_name, test_image=False, cam_list=None,
                  num_repeats=2, num_frames=1, env_feature_type='pixels', device='cuda', reward_rescale=True,
-                 use_point_cloud=False, render_segmentation=False):
+                 use_point_cloud=False, render_segmentation=False, num_distraction_nails=0):
         if '-v0' not in env_name:  # compatibility with gym env name
             env_name += '-v0'
         default_env_to_cam_list = {
@@ -243,6 +243,7 @@ class AdroitEnv:
         if cam_list is None:
             cam_list = default_env_to_cam_list[env_name]
         self.env_name = env_name
+        self.num_distraction_nails = num_distraction_nails
         reward_rescale_dict = {
             'hammer-v0': 1/100,
             'door-v0': 1/20,
@@ -256,7 +257,12 @@ class AdroitEnv:
 
         # env, _ = make_basic_env(env_name, cam_list=cam_list, from_pixels=from_pixels, hybrid_state=True,
         #     test_image=test_image, channels_first=True, num_repeats=num_repeats, num_frames=num_frames)
-        env = GymEnv(env_name)
+
+        # Create environment with distraction nails parameter for hammer task
+        if env_name == 'hammer-v0':
+            env = GymEnv(env_name, env_kwargs={'num_distraction_nails': num_distraction_nails})
+        else:
+            env = GymEnv(env_name)
         if env_feature_type == 'state':
             raise NotImplementedError("state env not ready")
         elif env_feature_type == 'resnet18' or env_feature_type == 'resnet34':

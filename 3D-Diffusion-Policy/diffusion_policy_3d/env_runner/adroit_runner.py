@@ -45,10 +45,12 @@ class AdroitRunner(BaseRunner):
                  task_name=None,
                  use_point_crop=True,
                  seg_type='gs2',  # 'gs2' or 'env'
+                 num_distraction_nails=0,  # Number of distraction nails for hammer task
                  ):
         super().__init__(output_dir)
         self.task_name = task_name
         self.seg_type = seg_type
+        self.num_distraction_nails = num_distraction_nails
 
         cprint(f"[AdroitRunner] Initialized with seg_type='{seg_type}' for task '{task_name}'", "cyan")
 
@@ -76,7 +78,7 @@ class AdroitRunner(BaseRunner):
             render_segmentation = (seg_type == 'env')
             return MultiStepWrapper(
                 SimpleVideoRecordingWrapper(
-                    MujocoPointcloudWrapperAdroit(env=AdroitEnv(env_name=task_name, use_point_cloud=True, render_segmentation=render_segmentation),
+                    MujocoPointcloudWrapperAdroit(env=AdroitEnv(env_name=task_name, use_point_cloud=True, render_segmentation=render_segmentation, num_distraction_nails=num_distraction_nails),
                                                   env_name='adroit_'+task_name, use_point_crop=use_point_crop)),
                 n_obs_steps=n_obs_steps,
                 n_action_steps=n_action_steps,
