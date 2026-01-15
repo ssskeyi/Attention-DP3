@@ -16,6 +16,8 @@ from collections import OrderedDict
 from gym import spaces
 from mjrl.utils.gym_env import GymEnv
 from .rrl_local.rrl_multicam import BasicAdroitEnv, BasicFrankaEnv
+# Import HammerEnvV0 to allow creating hammer envs with custom kwargs
+from mj_envs.hand_manipulation_suite.hammer_v0 import HammerEnvV0
 
 
 class ExtendedTimeStep(NamedTuple):
@@ -258,9 +260,11 @@ class AdroitEnv:
         # env, _ = make_basic_env(env_name, cam_list=cam_list, from_pixels=from_pixels, hybrid_state=True,
         #     test_image=test_image, channels_first=True, num_repeats=num_repeats, num_frames=num_frames)
 
-        # Create environment with distraction nails parameter for hammer task
+        # Create environment with distraction nails parameter for hammer task.
+        # GymEnv only forwards env_kwargs when given a callable; pass the HammerEnvV0
+        # class (callable) so GymEnv will instantiate it with env_kwargs.
         if env_name == 'hammer-v0':
-            env = GymEnv(env_name, env_kwargs={'num_distraction_nails': num_distraction_nails})
+            env = GymEnv(HammerEnvV0, env_kwargs={'num_distraction_nails': num_distraction_nails})
         else:
             env = GymEnv(env_name)
         if env_feature_type == 'state':

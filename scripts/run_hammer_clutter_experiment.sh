@@ -23,7 +23,7 @@ log() { echo -e "[hammer_clutter] $*"; }
 run_aedp3_clutter() {
     log "=== 运行 AEDP3 clutter实验 ==="
     task_name="adroit_hammer_clutter"
-    addition_info="clutter_aedp3"
+    addition_info="AEDP3_clutter"
     exp_name="${task_name}-${CONFIG_NAME}-${addition_info}"
     run_dir="data/outputs/${exp_name}_seed${SEED}"
 
@@ -39,6 +39,7 @@ run_aedp3_clutter() {
         training.device="cuda:0" \
         exp_name=${exp_name} \
         logging.mode=online \
+        logging.project=aedp3_clutter_comparison_0114 \
         checkpoint.save_ckpt=true
 }
 
@@ -46,7 +47,7 @@ run_aedp3_clutter() {
 run_dp3_clutter() {
     log "=== 运行 DP3 clutter实验 ==="
     task_name="adroit_hammer_no_attn_clutter"
-    addition_info="clutter_dp3"
+    addition_info="DP3_clutter"
     exp_name="${task_name}-${CONFIG_NAME}-${addition_info}"
     run_dir="data/outputs/${exp_name}_seed${SEED}"
 
@@ -62,6 +63,7 @@ run_dp3_clutter() {
         training.device="cuda:0" \
         exp_name=${exp_name} \
         logging.mode=online \
+        logging.project=aedp3_clutter_comparison_0114 \
         checkpoint.save_ckpt=true
 }
 
@@ -84,9 +86,9 @@ main() {
     log "实验完成！总耗时 $((end_time - start_time)) 秒"
 
     log "实验结果："
-    log "  - AEDP3 clutter: data/outputs/adroit_hammer_clutter-${CONFIG_NAME}-clutter_aedp3_seed${SEED}"
-    log "  - DP3 clutter: data/outputs/adroit_hammer_no_attn_clutter-${CONFIG_NAME}-clutter_dp3_seed${SEED}"
-    log "L5指标将在训练过程中自动计算并记录到wandb"
+    log "  - AEDP3 clutter: data/outputs/adroit_hammer_clutter-${CONFIG_NAME}-AEDP3_clutter_seed${SEED}"
+    log "  - DP3 clutter: data/outputs/adroit_hammer_no_attn_clutter-${CONFIG_NAME}-DP3_clutter_seed${SEED}"
+    log "L5指标将在训练过程中自动计算并记录到wandb项目: aedp3_clutter_comparison_0114"
 }
 
 main "$@"
