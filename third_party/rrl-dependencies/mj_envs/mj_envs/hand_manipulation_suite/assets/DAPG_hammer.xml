@@ -97,28 +97,28 @@
         </body>
 
         <!-- ======= Distraction Nails (child bodies under nail_board, static) ======= -->
-            <body name="nail_1" pos="0.02 0.02 0.02">
+            <body name="nail_1" pos="0.05 0.05 0.02">
                 <inertial pos="0 0 0.0775281" mass="0.0699004" diaginertia="8.23129e-05 8.23129e-05 2.51426e-05" />
                 <geom size="0.035 0.005" pos="0 0 0.1" type="cylinder" material="MatFoil" />
                 <geom size="0.01 0.05" pos="0 0 0.05" type="cylinder" material="MatFoil" />
                 <site name="S_dist_1" pos="0 0 0.101" size="0.034 0.005" type="cylinder" />
             </body>
 
-            <body name="nail_2" pos="-0.02 0.02 0.02">
+            <body name="nail_2" pos="-0.05 0.05 0.02">
                 <inertial pos="0 0 0.0775281" mass="0.0699004" diaginertia="8.23129e-05 8.23129e-05 2.51426e-05" />
                 <geom size="0.035 0.005" pos="0 0 0.1" type="cylinder" material="MatFoil" />
                 <geom size="0.01 0.05" pos="0 0 0.05" type="cylinder" material="MatFoil" />
                 <site name="S_dist_2" pos="0 0 0.101" size="0.034 0.005" type="cylinder" />
             </body>
 
-            <body name="nail_3" pos="0.02 -0.02 0.02">
+            <body name="nail_3" pos="0.05 -0.05 0.02">
                 <inertial pos="0 0 0.0775281" mass="0.0699004" diaginertia="8.23129e-05 8.23129e-05 2.51426e-05" />
                 <geom size="0.035 0.005" pos="0 0 0.1" type="cylinder" material="MatFoil" />
                 <geom size="0.01 0.05" pos="0 0 0.05" type="cylinder" material="MatFoil" />
                 <site name="S_dist_3" pos="0 0 0.101" size="0.034 0.005" type="cylinder" />
             </body>
 
-            <body name="nail_4" pos="-0.02 -0.02 0.02">
+            <body name="nail_4" pos="-0.05 -0.05 0.02">
                 <inertial pos="0 0 0.0775281" mass="0.0699004" diaginertia="8.23129e-05 8.23129e-05 2.51426e-05" />
                 <geom size="0.035 0.005" pos="0 0 0.1" type="cylinder" material="MatFoil" />
                 <geom size="0.01 0.05" pos="0 0 0.05" type="cylinder" material="MatFoil" />
