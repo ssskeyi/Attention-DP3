@@ -13,6 +13,47 @@
         <site name="obj" pos="0 0 .02" size="0.01" />
       </body>
 
+      <!-- Distraction objects for clutter experiments -->
+      <body name="clutter_0" pos="0.15 0.65 0.02">
+        <freejoint/>
+        <include file="../objects/assets/block.xml"/>
+      </body>
+
+      <body name="clutter_1" pos="-0.15 0.65 0.02">
+        <freejoint/>
+        <include file="../objects/assets/block.xml"/>
+      </body>
+
+      <body name="clutter_2" pos="0.20 0.60 0.02">
+        <freejoint/>
+        <include file="../objects/assets/block.xml"/>
+      </body>
+
+      <body name="clutter_3" pos="-0.20 0.60 0.02">
+        <freejoint/>
+        <include file="../objects/assets/block.xml"/>
+      </body>
+
+      <body name="clutter_4" pos="0.15 0.55 0.02">
+        <freejoint/>
+        <include file="../objects/assets/block.xml"/>
+      </body>
+
+      <body name="clutter_5" pos="-0.15 0.55 0.02">
+        <freejoint/>
+        <include file="../objects/assets/block.xml"/>
+      </body>
+
+      <body name="clutter_6" pos="0.10 0.55 0.02">
+        <freejoint/>
+        <include file="../objects/assets/block.xml"/>
+      </body>
+
+      <body name="clutter_7" pos="-0.10 0.55 0.02">
+        <freejoint/>
+        <include file="../objects/assets/block.xml"/>
+      </body>
+
       <site name="hand-goal-site" pos="0 0 0" size="0.01"
             rgba="1 0.5 0.5 0"/>
       <site name="goal" pos="0 0 0" size="0.01"

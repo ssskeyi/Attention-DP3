@@ -20,16 +20,23 @@ TASK_BOUDNS = {
 class MetaWorldEnv(gym.Env):
     metadata = {"render.modes": ["rgb_array"], "video.frames_per_second": 10}
 
-    def __init__(self, task_name, device="cuda:0", 
+    def __init__(self, task_name, device="cuda:0",
                  use_point_crop=True,
                  num_points=1024,
+                 num_distraction_objects=0,
                  ):
         super(MetaWorldEnv, self).__init__()
 
         if '-v2' not in task_name:
             task_name = task_name + '-v2-goal-observable'
 
-        self.env = metaworld.envs.ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[task_name]()
+        # Special handling for sweep task with distraction objects
+        if task_name == 'sweep-v2-goal-observable':
+            self.env = metaworld.envs.ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[task_name](
+                num_distraction_objects=num_distraction_objects
+            )
+        else:
+            self.env = metaworld.envs.ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[task_name]()
         self.env._freeze_rand_vec = False
 
         # https://arxiv.org/abs/2212.05698

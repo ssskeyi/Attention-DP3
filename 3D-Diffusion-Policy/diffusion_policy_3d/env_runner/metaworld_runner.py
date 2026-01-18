@@ -40,7 +40,8 @@ class MetaworldRunner(BaseRunner):
                  n_test=None,
                  device="cuda:0",
                  use_point_crop=True,
-                 num_points=512
+                 num_points=512,
+                 num_distraction_objects=0
                  ):
         super().__init__(output_dir)
         self.task_name = task_name
@@ -49,8 +50,9 @@ class MetaworldRunner(BaseRunner):
         def env_fn(task_name):
             return MultiStepWrapper(
                 SimpleVideoRecordingWrapper(
-                    MetaWorldEnv(task_name=task_name,device=device, 
-                                 use_point_crop=use_point_crop, num_points=num_points)),
+                    MetaWorldEnv(task_name=task_name,device=device,
+                                 use_point_crop=use_point_crop, num_points=num_points,
+                                 num_distraction_objects=num_distraction_objects)),
                 n_obs_steps=n_obs_steps,
                 n_action_steps=n_action_steps,
                 max_episode_steps=max_steps,

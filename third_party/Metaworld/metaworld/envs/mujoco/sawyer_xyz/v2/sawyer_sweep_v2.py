@@ -11,7 +11,7 @@ class SawyerSweepEnvV2(SawyerXYZEnv):
 
     OBJ_RADIUS = 0.02
 
-    def __init__(self):
+    def __init__(self, num_distraction_objects=0):
 
         init_puck_z = 0.1
         hand_low = (-0.5, 0.40, 0.05)
@@ -38,6 +38,10 @@ class SawyerSweepEnvV2(SawyerXYZEnv):
         self.hand_init_pos = self.init_config['hand_init_pos']
 
         self.init_puck_z = init_puck_z
+
+        # Setup distraction objects
+        self.num_distraction_objects = num_distraction_objects
+        self._setup_distraction_objects()
 
         self._random_reset_space = Box(
             np.array(obj_low),
@@ -79,6 +83,49 @@ class SawyerSweepEnvV2(SawyerXYZEnv):
     def _get_pos_objects(self):
         return self.get_body_com('obj')
 
+    def _setup_distraction_objects(self):
+        """Setup distraction objects based on num_distraction_objects parameter"""
+        if self.num_distraction_objects > 0:
+            # Define positions for distraction objects (relative to target object)
+            # Layout: 8 objects in a pattern around the target area
+            positions = [
+                [0.15, 0.65],   # clutter_0: right-top
+                [-0.15, 0.65],  # clutter_1: left-top
+                [0.20, 0.60],   # clutter_2: right-middle-top
+                [-0.20, 0.60],  # clutter_3: left-middle-top
+                [0.15, 0.55],   # clutter_4: right-middle-bottom
+                [-0.15, 0.55],  # clutter_5: left-middle-bottom
+                [0.10, 0.55],   # clutter_6: right-close
+                [-0.10, 0.55],  # clutter_7: left-close
+            ]
+
+            # Move the requested number of clutter objects to their positions
+            for i in range(min(self.num_distraction_objects, 8)):
+                try:
+                    body_name = f'clutter_{i}'
+                    body_id = self.sim.model.body_name2id(body_name)
+                    xy = positions[i]
+                    target_pos = np.array([xy[0], xy[1], 0.02])  # z=0.02 to match block height
+
+                    # Move to position
+                    self.sim.model.body_pos[body_id] = target_pos
+
+                    # Set orientation to match the table (flat on surface)
+                    # Assuming clutter objects should be oriented like the target object
+                    if hasattr(self, 'sim') and self.sim.model.body_quat is not None:
+                        # Keep default orientation (flat on table)
+                        pass
+
+                except Exception as e:
+                    # Body not found or other error, skip
+                    pass
+
+            # Ensure simulator state updated
+            try:
+                self.sim.forward()
+            except Exception:
+                pass
+
     def reset_model(self):
         self._reset_hand()
         self._target_pos = self.goal.copy()
@@ -91,6 +138,13 @@ class SawyerSweepEnvV2(SawyerXYZEnv):
             self._target_pos[1] = obj_pos.copy()[1]
 
         self._set_obj_xyz(self.obj_init_pos)
+
+        # Setup distraction objects after positioning target object
+        try:
+            self._setup_distraction_objects()
+        except Exception:
+            pass
+
         self.maxPushDist = np.linalg.norm(self.get_body_com('obj')[:-1] - self._target_pos[:-1])
         self.target_reward = 1000*self.maxPushDist + 1000*2
 
