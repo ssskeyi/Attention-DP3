@@ -23,8 +23,9 @@ log() { echo -e "[hammer_clutter] $*"; }
 run_aedp3_clutter() {
     log "=== 运行 AEDP3 clutter实验 ==="
     task_name="adroit_hammer_clutter"
-    addition_info="AEDP3_clutter"
+    addition_info="aedp3"
     exp_name="${task_name}-${CONFIG_NAME}-${addition_info}"
+    run_name="${SEED}-${addition_info}"
     run_dir="data/outputs/${exp_name}_seed${SEED}"
 
     cd "${ROOT}/3D-Diffusion-Policy"
@@ -39,7 +40,8 @@ run_aedp3_clutter() {
         training.device="cuda:0" \
         exp_name=${exp_name} \
         logging.mode=online \
-        logging.project=aedp3_clutter_comparison_0114 \
+        logging.name=${run_name} \
+        logging.project=8nails_seed0_aedp3_clutter_comparison_0117 \
         checkpoint.save_ckpt=true
 }
 
@@ -47,8 +49,9 @@ run_aedp3_clutter() {
 run_dp3_clutter() {
     log "=== 运行 DP3 clutter实验 ==="
     task_name="adroit_hammer_no_attn_clutter"
-    addition_info="DP3_clutter"
+    addition_info="dp3"
     exp_name="${task_name}-${CONFIG_NAME}-${addition_info}"
+    run_name="${SEED}-${addition_info}"
     run_dir="data/outputs/${exp_name}_seed${SEED}"
 
     cd "${ROOT}/3D-Diffusion-Policy"
@@ -63,7 +66,8 @@ run_dp3_clutter() {
         training.device="cuda:0" \
         exp_name=${exp_name} \
         logging.mode=online \
-        logging.project=aedp3_clutter_comparison_0114 \
+        logging.name=${run_name} \
+        logging.project=8nails_seed0_aedp3_clutter_comparison_0117 \
         checkpoint.save_ckpt=true
 }
 
@@ -88,7 +92,7 @@ main() {
     log "实验结果："
     log "  - AEDP3 clutter: data/outputs/adroit_hammer_clutter-${CONFIG_NAME}-AEDP3_clutter_seed${SEED}"
     log "  - DP3 clutter: data/outputs/adroit_hammer_no_attn_clutter-${CONFIG_NAME}-DP3_clutter_seed${SEED}"
-    log "L5指标将在训练过程中自动计算并记录到wandb项目: aedp3_clutter_comparison_0114"
+    log "L5指标将在训练过程中自动计算并记录到wandb项目: aedp3_clutter_comparison_0117"
 }
 
 main "$@"

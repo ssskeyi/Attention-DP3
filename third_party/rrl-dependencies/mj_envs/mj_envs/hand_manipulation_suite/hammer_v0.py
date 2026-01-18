@@ -55,6 +55,10 @@ class HammerEnvV0(mujoco_env.MujocoEnv, utils.EzPickle):
                 [-0.25, 0.25],  # Position for nail_2
                 [0.25, -0.25],  # Position for nail_3
                 [-0.25, -0.25], # Position for nail_4
+                [0.15, 0.15],   # Position for nail_5 (closer positions)
+                [-0.15, 0.15],  # Position for nail_6
+                [0.15, -0.15],  # Position for nail_7
+                [-0.15, -0.15], # Position for nail_8
             ]
 
             # Get nail board position as reference (use sim.model to affect current sim state)
@@ -95,7 +99,7 @@ class HammerEnvV0(mujoco_env.MujocoEnv, utils.EzPickle):
                 board_quat = self.sim.model.body_quat[board_bid].copy()
             except Exception:
                 board_quat = None
-            for i in range(min(self.num_distraction_nails, 4)):
+            for i in range(min(self.num_distraction_nails, 8)):
                 try:
                     body_name = f'nail_{i+1}'
                     body_id = self.sim.model.body_name2id(body_name)
@@ -143,9 +147,9 @@ class HammerEnvV0(mujoco_env.MujocoEnv, utils.EzPickle):
                 pass
 
     def get_distraction_nails(self):
-        """Return list of active distraction nail indices (1..4) whose z > 0 (above ground)"""
+        """Return list of active distraction nail indices (1..8) whose z > 0 (above ground)"""
         active = []
-        for i in range(1, 5):
+        for i in range(1, 9):
             try:
                 bid = self.sim.model.body_name2id(f'nail_{i}')
                 z = float(self.sim.model.body_pos[bid][2])
@@ -238,8 +242,8 @@ class HammerEnvV0(mujoco_env.MujocoEnv, utils.EzPickle):
         try:
             board_bid = self.sim.model.body_name2id('nail_board')
             board_quat = self.sim.model.body_quat[board_bid].copy()
-            # Align only distraction nails (nail_1..nail_4). Do NOT overwrite nail_0.
-            for i in range(1, 5):
+            # Align only distraction nails (nail_1..nail_8). Do NOT overwrite nail_0.
+            for i in range(1, 9):
                 try:
                     bid = self.sim.model.body_name2id(f'nail_{i}')
                     self.sim.model.body_quat[bid] = board_quat.copy()
