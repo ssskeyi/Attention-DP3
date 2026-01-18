@@ -18,7 +18,7 @@ class SawyerWindowOpenEnvV2(SawyerXYZEnv):
     """
     TARGET_RADIUS = 0.05
 
-    def __init__(self):
+    def __init__(self, num_distraction_objects=0):
 
         hand_low = (-0.5, 0.40, 0.05)
         hand_high = (0.5, 1, 0.5)
@@ -30,6 +30,10 @@ class SawyerWindowOpenEnvV2(SawyerXYZEnv):
             hand_low=hand_low,
             hand_high=hand_high,
         )
+
+        # Setup distraction objects
+        self.num_distraction_objects = num_distraction_objects
+        self._setup_distraction_objects()
 
         self.init_config = {
             'obj_init_angle': np.array([0.3, ], dtype=np.float32),
@@ -51,6 +55,48 @@ class SawyerWindowOpenEnvV2(SawyerXYZEnv):
 
         self.maxPullDist = 0.2
         self.target_reward = 1000 * self.maxPullDist + 1000 * 2
+
+    def _setup_distraction_objects(self):
+        """Setup distraction objects based on num_distraction_objects parameter"""
+        if self.num_distraction_objects > 0:
+            # Define positions for distraction objects (relative to window position)
+            # Window position: (-0.1, 0.785, 0.202)
+            positions = [
+                [-0.3, 0.6],   # clutter_0: left of window
+                [0.1, 0.6],    # clutter_1: right of window
+                [-0.35, 0.75], # clutter_2: further left
+                [0.15, 0.75],  # clutter_3: further right
+                [-0.25, 0.85], # clutter_4: near goal, left
+                [0.05, 0.85],  # clutter_5: near goal, right
+                [-0.2, 0.55],  # clutter_6: below window, left
+                [0.0, 0.55],   # clutter_7: below window, right
+            ]
+
+            # Move the requested number of clutter objects to their positions
+            for i in range(min(self.num_distraction_objects, 8)):
+                try:
+                    body_name = f'clutter_{i}'
+                    body_id = self.sim.model.body_name2id(body_name)
+                    xy = positions[i]
+                    target_pos = np.array([xy[0], xy[1], 0.02])  # z=0.02 to match block height
+
+                    # Move to position
+                    self.sim.model.body_pos[body_id] = target_pos
+
+                    # Set orientation to match the table (flat on surface)
+                    if hasattr(self, 'sim') and self.sim.model.body_quat is not None:
+                        # Keep default orientation (flat on table)
+                        pass
+
+                except Exception as e:
+                    # Body not found or other error, skip
+                    pass
+
+            # Ensure simulator state updated
+            try:
+                self.sim.forward()
+            except Exception:
+                pass
 
     @property
     def model_name(self):
@@ -97,6 +143,12 @@ class SawyerWindowOpenEnvV2(SawyerXYZEnv):
         )] = self.obj_init_pos
         self.window_handle_pos_init = self._get_pos_objects()
         self.data.set_joint_qpos('window_slide', 0.0)
+
+        # Setup distraction objects after positioning target objects
+        try:
+            self._setup_distraction_objects()
+        except Exception:
+            pass
 
         return self._get_obs()
 
