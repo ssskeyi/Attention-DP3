@@ -26,6 +26,7 @@ run_aedp3_clutter() {
     task_name="metaworld_sweep_clutter"
     addition_info="AEDP3_clutter"
     exp_name="${task_name}-${CONFIG_NAME}-${addition_info}"
+    run_name="${SEED}-${addition_info}"
     run_dir="data/outputs/${exp_name}_seed${SEED}"
 
     cd "${ROOT}/3D-Diffusion-Policy"
@@ -40,6 +41,7 @@ run_aedp3_clutter() {
         training.device="cuda:0" \
         exp_name=${exp_name} \
         logging.mode=online \
+        logging.name=${run_name} \
         logging.project=aedp3_metaworld_clutter_comparison_0118 \
         checkpoint.save_ckpt=true
 }
@@ -50,6 +52,7 @@ run_dp3_clutter() {
     task_name="metaworld_sweep_no_attn_clutter"
     addition_info="DP3_clutter"
     exp_name="${task_name}-${CONFIG_NAME}-${addition_info}"
+    run_name="${SEED}-${addition_info}"
     run_dir="data/outputs/${exp_name}_seed${SEED}"
 
     cd "${ROOT}/3D-Diffusion-Policy"
@@ -64,6 +67,7 @@ run_dp3_clutter() {
         training.device="cuda:0" \
         exp_name=${exp_name} \
         logging.mode=online \
+        logging.name=${run_name} \
         logging.project=aedp3_metaworld_clutter_comparison_0118 \
         checkpoint.save_ckpt=true
 }

@@ -32,9 +32,13 @@ class MetaWorldEnv(gym.Env):
 
         # Special handling for sweep task with distraction objects
         if task_name == 'sweep-v2-goal-observable':
-            self.env = metaworld.envs.ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[task_name](
-                num_distraction_objects=num_distraction_objects
-            )
+            # Create standard environment and then set distraction objects
+            self.env = metaworld.envs.ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[task_name]()
+            # Manually set the num_distraction_objects attribute
+            self.env.num_distraction_objects = num_distraction_objects
+            # Call setup method if available
+            if hasattr(self.env, '_setup_distraction_objects'):
+                self.env._setup_distraction_objects()
         else:
             self.env = metaworld.envs.ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[task_name]()
         self.env._freeze_rand_vec = False

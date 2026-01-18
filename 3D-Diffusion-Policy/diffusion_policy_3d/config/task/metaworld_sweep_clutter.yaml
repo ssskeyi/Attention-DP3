@@ -1,4 +1,4 @@
-name: sweep_clutter
+name: metaworld_sweep_clutter
 
 task_name: sweep
 
@@ -25,7 +25,7 @@ env_runner:
   n_envs: null
   n_train: null
   n_test: null
-  task_name: ${task_name}
+  task_name: sweep
   device: ${training.device}
   use_point_crop: ${policy.use_point_crop}
   num_distraction_objects: 8  # 8 distraction objects for clutter experiment
