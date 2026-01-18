@@ -30,8 +30,8 @@ class MetaWorldEnv(gym.Env):
         if '-v2' not in task_name:
             task_name = task_name + '-v2-goal-observable'
 
-        # Special handling for sweep task with distraction objects
-        if task_name == 'sweep-v2-goal-observable':
+        # Special handling for tasks with distraction objects
+        if task_name in ['sweep-v2-goal-observable', 'assembly-v2-goal-observable']:
             # Create standard environment and then set distraction objects
             self.env = metaworld.envs.ALL_V2_ENVIRONMENTS_GOAL_OBSERVABLE[task_name]()
             # Manually set the num_distraction_objects attribute

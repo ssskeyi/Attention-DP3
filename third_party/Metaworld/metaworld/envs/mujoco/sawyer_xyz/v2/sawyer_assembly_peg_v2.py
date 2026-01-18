@@ -9,7 +9,7 @@ from metaworld.envs.mujoco.sawyer_xyz.sawyer_xyz_env import SawyerXYZEnv, _asser
 class SawyerNutAssemblyEnvV2(SawyerXYZEnv):
     WRENCH_HANDLE_LENGTH = 0.02
 
-    def __init__(self):
+    def __init__(self, num_distraction_objects=0):
         hand_low = (-0.5, 0.40, 0.05)
         hand_high = (0.5, 1, 0.5)
         obj_low = (0, 0.6, 0.02)
@@ -39,9 +39,55 @@ class SawyerNutAssemblyEnvV2(SawyerXYZEnv):
         )
         self.goal_space = Box(np.array(goal_low), np.array(goal_high))
 
+        # Setup distraction objects
+        self.num_distraction_objects = num_distraction_objects
+        self._setup_distraction_objects()
+
     @property
     def model_name(self):
         return full_v2_path_for('sawyer_xyz/sawyer_assembly_peg.xml')
+
+    def _setup_distraction_objects(self):
+        """Setup distraction objects based on num_distraction_objects parameter"""
+        if self.num_distraction_objects > 0:
+            # Define positions for distraction objects (relative to RoundNut and peg)
+            # Layout: 8 objects around the assembly area
+            positions = [
+                [-0.1, 0.65],   # clutter_0: left of RoundNut
+                [0.3, 0.65],    # clutter_1: right of RoundNut
+                [-0.2, 0.7],    # clutter_2: further left
+                [0.4, 0.7],     # clutter_3: further right
+                [-0.15, 0.75],  # clutter_4: near peg, left
+                [0.35, 0.75],   # clutter_5: near peg, right
+                [-0.05, 0.55],  # clutter_6: below RoundNut, left
+                [0.25, 0.55],   # clutter_7: below RoundNut, right
+            ]
+
+            # Move the requested number of clutter objects to their positions
+            for i in range(min(self.num_distraction_objects, 8)):
+                try:
+                    body_name = f'clutter_{i}'
+                    body_id = self.sim.model.body_name2id(body_name)
+                    xy = positions[i]
+                    target_pos = np.array([xy[0], xy[1], 0.02])  # z=0.02 to match block height
+
+                    # Move to position
+                    self.sim.model.body_pos[body_id] = target_pos
+
+                    # Set orientation to match the table (flat on surface)
+                    if hasattr(self, 'sim') and self.sim.model.body_quat is not None:
+                        # Keep default orientation (flat on table)
+                        pass
+
+                except Exception as e:
+                    # Body not found or other error, skip
+                    pass
+
+            # Ensure simulator state updated
+            try:
+                self.sim.forward()
+            except Exception:
+                pass
 
     @_assert_task_is_set
     def evaluate_state(self, obs, action):
@@ -98,6 +144,12 @@ class SawyerNutAssemblyEnvV2(SawyerXYZEnv):
         self._set_obj_xyz(self.obj_init_pos)
         self.sim.model.body_pos[self.model.body_name2id('peg')] = peg_pos
         self.sim.model.site_pos[self.model.site_name2id('pegTop')] = self._target_pos
+
+        # Setup distraction objects after positioning target objects
+        try:
+            self._setup_distraction_objects()
+        except Exception:
+            pass
 
         return self._get_obs()
 
