@@ -58,6 +58,8 @@ policy:
 
   use_pc_color: false
   pointnet_type: "pointnet"
+  attn_channels: null  # null means use all channels, or list like [0,1] for specific channels
+  fusion_strategy: late  # 'late' or 'early' fusion
 
 
   pointcloud_encoder_cfg:

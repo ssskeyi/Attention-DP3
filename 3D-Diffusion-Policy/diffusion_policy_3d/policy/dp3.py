@@ -40,6 +40,8 @@ class DP3(BasePolicy):
             use_pc_color=False,
             pointnet_type="pointnet",
             pointcloud_encoder_cfg=None,
+            attn_channels=None,  # List of attention channel indices to use
+            fusion_strategy='late',  # 'late' or 'early' fusion
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -66,6 +68,8 @@ class DP3(BasePolicy):
                                                 pointcloud_encoder_cfg=pointcloud_encoder_cfg,
                                                 use_pc_color=use_pc_color,
                                                 pointnet_type=pointnet_type,
+                                                attn_channels=attn_channels,
+                                                fusion_strategy=fusion_strategy,
                                                 )
 
         # create diffusion model

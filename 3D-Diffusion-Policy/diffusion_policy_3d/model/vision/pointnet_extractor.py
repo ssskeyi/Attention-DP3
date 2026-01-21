@@ -206,14 +206,21 @@ class AttentionFieldEncoder(nn.Module):
     Input: (B, C, N) where C is channels, N is number of points
     Output: (B, out_dim) feature vector
     """
-    def __init__(self, in_channels, n_points, out_dim=64, hidden_dims=[128, 256]):
+    def __init__(self, in_channels, n_points, out_dim=64, hidden_dims=[128, 256], channel_selection=None):
         super().__init__()
         self.in_channels = in_channels
         self.n_points = n_points
-        
+        self.channel_selection = channel_selection  # List of channel indices to use, None means use all
+
+        # Determine effective input channels after selection
+        if self.channel_selection is not None:
+            effective_in_channels = len(self.channel_selection)
+        else:
+            effective_in_channels = in_channels
+
         # Per-point MLP to process each point's features
         layers = []
-        dim_in = in_channels
+        dim_in = effective_in_channels
         for dim_out in hidden_dims:
             layers.extend([
                 nn.Linear(dim_in, dim_out),
@@ -221,15 +228,15 @@ class AttentionFieldEncoder(nn.Module):
                 nn.ReLU(),
             ])
             dim_in = dim_out
-        
+
         self.point_mlp = nn.Sequential(*layers)
-        
+
         # Global pooling + final projection
         self.final_proj = nn.Sequential(
             nn.Linear(dim_in, out_dim),
             nn.LayerNorm(out_dim),
         )
-        
+
     def forward(self, x):
         """
         Args:
@@ -237,8 +244,12 @@ class AttentionFieldEncoder(nn.Module):
         Returns:
             feat: (B, out_dim) feature vector
         """
+        # Select specific channels if specified
+        if self.channel_selection is not None:
+            x = x[:, self.channel_selection, :]  # (B, len(channel_selection), N)
+
         # Transpose to (B, N, C) for per-point processing
-        x = x.transpose(1, 2)  # (B, N, C)
+        x = x.transpose(1, 2)  # (B, N, C_selected)
         # Process each point
         x = self.point_mlp(x)  # (B, N, hidden_dim)
         # Global max pooling
@@ -249,8 +260,8 @@ class AttentionFieldEncoder(nn.Module):
 
 
 class DP3Encoder(nn.Module):
-    def __init__(self, 
-                 observation_space: Dict, 
+    def __init__(self,
+                 observation_space: Dict,
                  img_crop_shape=None,
                  out_channel=256,
                  state_mlp_size=(64, 64), state_mlp_activation_fn=nn.ReLU,
@@ -258,6 +269,8 @@ class DP3Encoder(nn.Module):
                  use_pc_color=False,
                  pointnet_type='pointnet',
                  attn_3d_encoder_dim=64,
+                 attn_channels=None,  # List of attention channel indices to use, None means use all
+                 fusion_strategy='late',  # 'late' or 'early' fusion
                  ):
         super().__init__()
         self.imagination_key = 'imagin_robot'
@@ -270,11 +283,13 @@ class DP3Encoder(nn.Module):
         self.use_imagined_robot = self.imagination_key in observation_space.keys()
         self.point_cloud_shape = observation_space[self.point_cloud_key]
         self.state_shape = observation_space[self.state_key]
+        self.attn_channels = attn_channels  # Store channel selection
+        self.fusion_strategy = fusion_strategy  # Store fusion strategy
         if self.use_imagined_robot:
             self.imagination_shape = observation_space[self.imagination_key]
         else:
             self.imagination_shape = None
-        
+
         # Check if attn_3d is in observation space
         self.use_attn_3d = self.attn_3d_key in observation_space.keys()
         if self.use_attn_3d:
@@ -285,20 +300,34 @@ class DP3Encoder(nn.Module):
             else:
                 raise ValueError(f"attn_3d shape should be [C, N], got {self.attn_3d_shape}")
 
-            # Create attention field encoder
-            self.attn_3d_encoder = AttentionFieldEncoder(
-                in_channels=attn_3d_channels,
-                n_points=attn_3d_n_points,
-                out_dim=attn_3d_encoder_dim,
-            )
-            self.n_output_channels += attn_3d_encoder_dim
+            # For early fusion, we don't need separate attention encoder
+            if self.fusion_strategy == 'early':
+                self.attn_3d_encoder = None
+                # Early fusion: concatenate attention channels to point cloud
+                # Determine effective attention channels after selection
+                effective_attn_channels = len(attn_channels) if attn_channels is not None else attn_3d_channels
+            else:  # late fusion
+                # Create attention field encoder with channel selection
+                self.attn_3d_encoder = AttentionFieldEncoder(
+                    in_channels=attn_3d_channels,
+                    n_points=attn_3d_n_points,
+                    out_dim=attn_3d_encoder_dim,
+                    channel_selection=attn_channels,
+                )
+                self.n_output_channels += attn_3d_encoder_dim
+                effective_attn_channels = 0
 
             cprint(f"[DP3Encoder] attn_3d shape: {self.attn_3d_shape}", "yellow")
-            cprint(f"[DP3Encoder] attn_3d encoder output dim: {attn_3d_encoder_dim}", "yellow")
+            cprint(f"[DP3Encoder] fusion_strategy: {self.fusion_strategy}", "yellow")
+            cprint(f"[DP3Encoder] attn_channels: {attn_channels}", "yellow")
+            if self.fusion_strategy == 'early':
+                cprint(f"[DP3Encoder] early fusion: effective_attn_channels={effective_attn_channels}", "yellow")
+            else:
+                cprint(f"[DP3Encoder] attn_3d encoder output dim: {attn_3d_encoder_dim}", "yellow")
         else:
             self.attn_3d_shape = None
             self.attn_3d_encoder = None
-            attn_3d_channels = 0
+            effective_attn_channels = 0
         
         
         cprint(f"[DP3Encoder] point cloud shape: {self.point_cloud_shape}", "yellow")
@@ -313,16 +342,26 @@ class DP3Encoder(nn.Module):
                 pointcloud_encoder_cfg = {}
             # Create a copy to avoid modifying the original config
             encoder_cfg = copy.copy(pointcloud_encoder_cfg)
+            # Determine base channels based on point cloud type
             if use_pc_color:
                 base_channels = 6  # xyz + rgb
             else:
                 base_channels = 3  # xyz only
 
+            # For early fusion, add attention channels to input
+            if self.fusion_strategy == 'early' and self.use_attn_3d:
+                effective_attn_channels = len(attn_channels) if attn_channels is not None else attn_3d_channels
+                total_channels = base_channels + effective_attn_channels
+                cprint(f"[DP3Encoder] Early fusion: base_channels={base_channels}, attn_channels={effective_attn_channels}, total={total_channels}", "yellow")
+            else:
+                total_channels = base_channels
+
+            # Create encoder with appropriate input channels
             if use_pc_color:
-                encoder_cfg['in_channels'] = 6
+                encoder_cfg['in_channels'] = total_channels
                 self.extractor = PointNetEncoderXYZRGB(**encoder_cfg)
             else:
-                encoder_cfg['in_channels'] = 3
+                encoder_cfg['in_channels'] = total_channels
                 self.extractor = PointNetEncoderXYZ(**encoder_cfg)
         else:
             raise NotImplementedError(f"pointnet_type: {pointnet_type}")
@@ -349,16 +388,40 @@ class DP3Encoder(nn.Module):
             img_points = observations[self.imagination_key][..., :points.shape[-1]] # align the last dim
             points = torch.concat([points, img_points], dim=1)
 
-        # points = torch.transpose(points, 1, 2)   # B * 3 * N
-        # points: B * 3 * (N + sum(Ni))
+        # Handle early fusion: concatenate attention field to point cloud
+        if self.fusion_strategy == 'early' and self.use_attn_3d and self.attn_3d_key in observations:
+            attn_3d = observations[self.attn_3d_key]  # (B, C, N)
+            if len(attn_3d.shape) == 3:
+                # Select channels if specified
+                if self.attn_channels is not None:
+                    attn_3d = attn_3d[:, self.attn_channels, :]  # (B, selected_C, N)
+
+                # Reshape attention field to match point cloud format (B, N, C)
+                attn_reshaped = attn_3d.transpose(1, 2)  # (B, N, C)
+
+                # For each point in the point cloud, concatenate attention features
+                B, N_pc, C_pc = points.shape
+                _, N_attn, C_attn = attn_reshaped.shape
+
+                # Ensure dimensions match (use min of N_pc and N_attn)
+                N = min(N_pc, N_attn)
+                points = points[:, :N, :]  # (B, N, C_pc)
+                attn_reshaped = attn_reshaped[:, :N, :]  # (B, N, C_attn)
+
+                # Concatenate along feature dimension
+                points = torch.cat([points, attn_reshaped], dim=-1)  # (B, N, C_pc + C_attn)
+            else:
+                raise ValueError(f"attn_3d shape should be (B, C, N), got {attn_3d.shape}")
+
+        # points: B * N * C_total (after potential concatenation with attention)
         pn_feat = self.extractor(points)    # B * out_channel
 
         state = observations[self.state_key]
         state_feat = self.state_mlp(state)  # B * 64
 
-        # Process 3D attention field if available
+        # Process 3D attention field for late fusion
         feat_list = [pn_feat, state_feat]
-        if self.use_attn_3d and self.attn_3d_encoder is not None and self.attn_3d_key in observations:
+        if self.fusion_strategy == 'late' and self.use_attn_3d and self.attn_3d_encoder is not None and self.attn_3d_key in observations:
             attn_3d = observations[self.attn_3d_key]
             # attn_3d should be (B, C, N)
             if len(attn_3d.shape) == 3:

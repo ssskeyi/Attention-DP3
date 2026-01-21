@@ -1,0 +1,167 @@
+# AEDP3消融实验多终端运行命令
+# 支持注意力通道消融和编码器融合策略消融
+# 注意：需要先启动GS2服务器（见下方终端2-5）
+
+# 终端1: 生成adroit数据集（如果还没有生成）
+export CUDA_VISIBLE_DEVICES=0
+export GS2_CONDA_ENV=aedp3_vis
+export DEVICE=cuda:0
+bash scripts/make_adroit_datasets.sh
+
+# 终端2: GPU0的GS2服务器 (端口5000) - 用于有attn任务
+cd Grounded-SAM-2
+CUDA_VISIBLE_DEVICES=0 python gs2_api_server.py --device cuda:0 --port 5000
+
+# 终端3: GPU1的GS2服务器 (端口5001) - 用于有attn任务
+cd Grounded-SAM-2
+CUDA_VISIBLE_DEVICES=1 python gs2_api_server.py --device cuda:1 --port 5001
+
+# 终端4: GPU2的GS2服务器 (端口5002) - 用于有attn任务
+cd Grounded-SAM-2
+CUDA_VISIBLE_DEVICES=2 python gs2_api_server.py --device cuda:2 --port 5002
+
+# 终端5: GPU3的GS2服务器 (端口5003) - 用于有attn任务
+cd Grounded-SAM-2
+CUDA_VISIBLE_DEVICES=3 python gs2_api_server.py --device cuda:3 --port 5003
+
+# ==================== 消融实验训练任务 ====================
+
+# 终端6: GPU0训练所有变体 - adroit_pen任务
+export CUDA_VISIBLE_DEVICES=0
+export GPU_ID=0
+export SEED=0
+export CONFIG_NAME=dp3
+export GS2_PORT=5000
+export TASKS="adroit_pen"
+export ABLATION_VARIANTS="DP3,AEDP3-Full,AEDP3-C0,AEDP3-C1,AEDP3-C2,AEDP3-C01,AEDP3-C02,AEDP3-C12,AEDP3-Late,AEDP3-Early"
+bash scripts/run_ablation_experiments.sh
+
+# 终端7: GPU1训练所有变体 - adroit_door任务
+export CUDA_VISIBLE_DEVICES=1
+export GPU_ID=1
+export SEED=0
+export CONFIG_NAME=dp3
+export GS2_PORT=5001
+export TASKS="adroit_door"
+export ABLATION_VARIANTS="DP3,AEDP3-Full,AEDP3-C0,AEDP3-C1,AEDP3-C2,AEDP3-C01,AEDP3-C02,AEDP3-C12,AEDP3-Late,AEDP3-Early"
+bash scripts/run_ablation_experiments.sh
+
+# ==================== 分批运行（如果资源有限）===================
+
+# 终端8: GPU2训练基准线变体 - 两个任务
+export CUDA_VISIBLE_DEVICES=2
+export GPU_ID=2
+export SEED=0
+export CONFIG_NAME=dp3
+export GS2_PORT=5002
+export TASKS="adroit_pen adroit_door"
+export ABLATION_VARIANTS="DP3,AEDP3-Full"
+bash scripts/run_ablation_experiments.sh
+
+# 终端9: GPU3训练单通道变体 - 两个任务
+export CUDA_VISIBLE_DEVICES=3
+export GPU_ID=3
+export SEED=0
+export CONFIG_NAME=dp3
+export GS2_PORT=5003
+export TASKS="adroit_pen adroit_door"
+export ABLATION_VARIANTS="AEDP3-C0,AEDP3-C1,AEDP3-C2"
+bash scripts/run_ablation_experiments.sh
+
+# 终端10: GPU0训练双通道变体 - adroit_pen任务
+export CUDA_VISIBLE_DEVICES=0
+export GPU_ID=0
+export SEED=0
+export CONFIG_NAME=dp3
+export GS2_PORT=5000
+export TASKS="adroit_pen"
+export ABLATION_VARIANTS="AEDP3-C01,AEDP3-C02,AEDP3-C12"
+bash scripts/run_ablation_experiments.sh
+
+# 终端11: GPU1训练融合策略变体 - adroit_pen任务
+export CUDA_VISIBLE_DEVICES=1
+export GPU_ID=1
+export SEED=0
+export CONFIG_NAME=dp3
+export GS2_PORT=5001
+export TASKS="adroit_pen"
+export ABLATION_VARIANTS="AEDP3-Late,AEDP3-Early"
+bash scripts/run_ablation_experiments.sh
+
+# 终端12: GPU2训练双通道变体 - adroit_door任务
+export CUDA_VISIBLE_DEVICES=2
+export GPU_ID=2
+export SEED=0
+export CONFIG_NAME=dp3
+export GS2_PORT=5002
+export TASKS="adroit_door"
+export ABLATION_VARIANTS="AEDP3-C01,AEDP3-C02,AEDP3-C12"
+bash scripts/run_ablation_experiments.sh
+
+# 终端13: GPU3训练融合策略变体 - adroit_door任务
+export CUDA_VISIBLE_DEVICES=3
+export GPU_ID=3
+export SEED=0
+export CONFIG_NAME=dp3
+export GS2_PORT=5003
+export TASKS="adroit_door"
+export ABLATION_VARIANTS="AEDP3-Late,AEDP3-Early"
+bash scripts/run_ablation_experiments.sh
+
+# ==================== 单变体测试运行 ====================
+
+# 终端14: 测试DP3基准线 - adroit_pen任务
+export CUDA_VISIBLE_DEVICES=0
+export GPU_ID=0
+export SEED=0
+export CONFIG_NAME=dp3
+export TASKS="adroit_pen"
+export ABLATION_VARIANTS="DP3"
+export EXTRA_ARGS="training.max_train_steps=1000 training.debug=true"
+bash scripts/run_ablation_experiments.sh
+
+# 终端15: 测试AEDP3完整系统 - adroit_pen任务
+export CUDA_VISIBLE_DEVICES=1
+export GPU_ID=1
+export SEED=0
+export CONFIG_NAME=dp3
+export GS2_PORT=5001
+export TASKS="adroit_pen"
+export ABLATION_VARIANTS="AEDP3-Full"
+export EXTRA_ARGS="training.max_train_steps=1000 training.debug=true"
+bash scripts/run_ablation_experiments.sh
+
+# ==================== 不同种子重复实验 ====================
+
+# 终端16: GPU0 - SEED=1，运行核心变体
+export CUDA_VISIBLE_DEVICES=0
+export GPU_ID=0
+export SEED=1
+export CONFIG_NAME=dp3
+export GS2_PORT=5000
+export TASKS="adroit_pen adroit_door"
+export ABLATION_VARIANTS="DP3,AEDP3-Full,AEDP3-C0,AEDP3-C01,AEDP3-Late,AEDP3-Early"
+bash scripts/run_ablation_experiments.sh
+
+# 终端17: GPU1 - SEED=2，运行核心变体
+export CUDA_VISIBLE_DEVICES=1
+export GPU_ID=1
+export SEED=2
+export CONFIG_NAME=dp3
+export GS2_PORT=5001
+export TASKS="adroit_pen adroit_door"
+export ABLATION_VARIANTS="DP3,AEDP3-Full,AEDP3-C0,AEDP3-C01,AEDP3-Late,AEDP3-Early"
+bash scripts/run_ablation_experiments.sh
+
+# ==================== 快速验证模式 ====================
+
+# 终端18: 快速验证所有变体配置（仅几步训练）
+export CUDA_VISIBLE_DEVICES=0
+export GPU_ID=0
+export SEED=0
+export CONFIG_NAME=dp3
+export GS2_PORT=5000
+export TASKS="adroit_pen"
+export ABLATION_VARIANTS="DP3,AEDP3-Full,AEDP3-C0,AEDP3-C1,AEDP3-C2"
+export EXTRA_ARGS="training.max_train_steps=50 training.debug=true logging.mode=offline"
+bash scripts/run_ablation_experiments.sh
