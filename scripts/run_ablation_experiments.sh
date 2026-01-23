@@ -30,9 +30,12 @@ DEFAULT_TASKS=(
   adroit_door
 )
 
+# 定义日志函数
+log() { echo -e "[ablation_experiments] $*"; }
+
 # 消融实验变体定义
 # 格式: ID|名称|通道组合|融合策略|预期验证
-declare -a ABLATION_VARIANTS=(
+declare -a DEFAULT_ABLATION_VARIANTS=(
   # 基准线变体
   "DP3|DP3-baseline|no_attn|late_fusion|原始基准性能"
   "AEDP3-Full|AEDP3-full|all_channels|late_fusion|完整系统性能"
@@ -52,6 +55,8 @@ declare -a ABLATION_VARIANTS=(
   "AEDP3-Early|AEDP3-early-fusion|all_channels|early_fusion|早期融合对比"
 )
 
+log "默认变体数量: ${#DEFAULT_ABLATION_VARIANTS[@]}"
+
 # 如果设置了TASKS环境变量，使用它；否则使用默认任务
 if [[ -n "${TASKS:-}" ]]; then
   # 将TASKS字符串转换为数组
@@ -62,20 +67,26 @@ fi
 
 # 如果设置了ABLATION_VARIANTS环境变量，使用它；否则使用全部变体
 if [[ -n "${ABLATION_VARIANTS:-}" ]]; then
+  log "检测到ABLATION_VARIANTS环境变量: $ABLATION_VARIANTS"
   # 将ABLATION_VARIANTS字符串转换为数组（按逗号分割）
   IFS=',' read -r -a SELECTED_VARIANTS <<< "$ABLATION_VARIANTS"
+  log "选择的变体: ${SELECTED_VARIANTS[*]}"
   # 过滤出匹配的变体
   FILTERED_VARIANTS=()
-  for variant_info in "${ABLATION_VARIANTS[@]}"; do
+  for variant_info in "${DEFAULT_ABLATION_VARIANTS[@]}"; do
     variant_id=$(echo "$variant_info" | cut -d'|' -f1)
     for selected in "${SELECTED_VARIANTS[@]}"; do
       if [[ "$variant_id" == "$selected" ]]; then
         FILTERED_VARIANTS+=("$variant_info")
+        log "匹配到变体: $variant_id"
         break
       fi
     done
   done
   ABLATION_VARIANTS=("${FILTERED_VARIANTS[@]}")
+else
+  log "未设置ABLATION_VARIANTS环境变量，使用默认全部变体"
+  ABLATION_VARIANTS=("${DEFAULT_ABLATION_VARIANTS[@]}")
 fi
 
 log() { echo -e "[ablation_experiments] $*"; }
@@ -94,6 +105,8 @@ export CUDA_VISIBLE_DEVICES=${GPU_ID}
 total_start=$(date +%s)
 
 log "开始消融实验，共 ${#ABLATION_VARIANTS[@]} 个变体，${#TASKS_ARRAY[@]} 个任务"
+log "变体列表: ${ABLATION_VARIANTS[*]}"
+log "任务列表: ${TASKS_ARRAY[*]}"
 
 # 遍历所有消融变体
 for variant_info in "${ABLATION_VARIANTS[@]}"; do
@@ -112,36 +125,36 @@ for variant_info in "${ABLATION_VARIANTS[@]}"; do
   # 根据通道配置设置参数
   case $channels in
     "no_attn")
-      # DP3基准线：不使用注意力
-      variant_extra_args="$variant_extra_args dataset.use_attn_3d=false"
+      # DP3基准线：使用默认配置
+      variant_extra_args="$variant_extra_args"
       ;;
     "all_channels")
-      # 全通道
-      variant_extra_args="$variant_extra_args dataset.use_attn_3d=true"
+      # 全通道：使用默认注意力配置
+      variant_extra_args="$variant_extra_args"
       ;;
     "channel_0")
       # 仅通道0
-      variant_extra_args="$variant_extra_args dataset.use_attn_3d=true policy.attn_channels=[0]"
+      variant_extra_args="$variant_extra_args policy.attn_channels=[0]"
       ;;
     "channel_1")
       # 仅通道1
-      variant_extra_args="$variant_extra_args dataset.use_attn_3d=true policy.attn_channels=[1]"
+      variant_extra_args="$variant_extra_args policy.attn_channels=[1]"
       ;;
     "channel_2")
       # 仅通道2
-      variant_extra_args="$variant_extra_args dataset.use_attn_3d=true policy.attn_channels=[2]"
+      variant_extra_args="$variant_extra_args policy.attn_channels=[2]"
       ;;
     "channels_01")
       # 通道0+1
-      variant_extra_args="$variant_extra_args dataset.use_attn_3d=true policy.attn_channels=[0,1]"
+      variant_extra_args="$variant_extra_args policy.attn_channels=[0,1]"
       ;;
     "channels_02")
       # 通道0+2
-      variant_extra_args="$variant_extra_args dataset.use_attn_3d=true policy.attn_channels=[0,2]"
+      variant_extra_args="$variant_extra_args policy.attn_channels=[0,2]"
       ;;
     "channels_12")
       # 通道1+2
-      variant_extra_args="$variant_extra_args dataset.use_attn_3d=true policy.attn_channels=[1,2]"
+      variant_extra_args="$variant_extra_args policy.attn_channels=[1,2]"
       ;;
   esac
 
@@ -173,16 +186,18 @@ for variant_info in "${ABLATION_VARIANTS[@]}"; do
         ;;
     esac
 
-    # 根据变体设置数据集路径和GS2配置
+    # 根据变体设置任务名称和数据集配置
     if [[ "$channels" == "no_attn" ]]; then
-      dataset_path="data/${base_task}_expert.zarr"
+      task_config="${task}_no_attn"
+      dataset_path="data/${base_task}_expert_no_attn.zarr"
       # DP3任务不需要GS2 API URL
       gs2_args=""
     else
-      dataset_path="data/${base_task}_expert_attn3d.zarr"
+      task_config="${task}"
+      dataset_path="data/${base_task}_expert_gs2_attn3d.zarr"
       # GS2任务需要设置GS2 API URL环境变量
       export GS2_API_URL="http://127.0.0.1:${GS2_PORT}"
-      gs2_args="gs2_api_url=${GS2_API_URL}"
+      gs2_args="+gs2_api_url=${GS2_API_URL}"
     fi
 
     # 构建实验名称和运行名称
@@ -194,11 +209,11 @@ for variant_info in "${ABLATION_VARIANTS[@]}"; do
 
     run_dir="data/outputs/${exp_name}_seed${SEED}"
 
-    log "  训练任务: ${task} (变体=${variant_id}, exp_name=${exp_name}, gpu_id=${GPU_ID}, seed=${SEED})"
+    log "  训练任务: ${task} (配置=${task_config}, 变体=${variant_id}, exp_name=${exp_name}, gpu_id=${GPU_ID}, seed=${SEED})"
 
     # 运行训练
     python train.py --config-name=${CONFIG_NAME}.yaml \
-                        task=${task} \
+                        task=${task_config} \
                         hydra.run.dir=${run_dir} \
                         training.debug=$DEBUG \
                         training.seed=${SEED} \

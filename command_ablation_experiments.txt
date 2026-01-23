@@ -49,61 +49,61 @@ bash scripts/run_ablation_experiments.sh
 # ==================== 分批运行（如果资源有限）===================
 
 # 终端8: GPU2训练基准线变体 - 两个任务
-export CUDA_VISIBLE_DEVICES=2
-export GPU_ID=2
-export SEED=0
-export CONFIG_NAME=dp3
-export GS2_PORT=5002
-export TASKS="adroit_pen adroit_door"
-export ABLATION_VARIANTS="DP3,AEDP3-Full"
-bash scripts/run_ablation_experiments.sh
-
-# 终端9: GPU3训练单通道变体 - 两个任务
-export CUDA_VISIBLE_DEVICES=3
-export GPU_ID=3
-export SEED=0
-export CONFIG_NAME=dp3
-export GS2_PORT=5003
-export TASKS="adroit_pen adroit_door"
-export ABLATION_VARIANTS="AEDP3-C0,AEDP3-C1,AEDP3-C2"
-bash scripts/run_ablation_experiments.sh
-
-# 终端10: GPU0训练双通道变体 - adroit_pen任务
 export CUDA_VISIBLE_DEVICES=0
 export GPU_ID=0
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5000
-export TASKS="adroit_pen"
-export ABLATION_VARIANTS="AEDP3-C01,AEDP3-C02,AEDP3-C12"
+export TASKS="adroit_pen adroit_door"
+export ABLATION_VARIANTS="DP3,AEDP3-Full"
 bash scripts/run_ablation_experiments.sh
 
-# 终端11: GPU1训练融合策略变体 - adroit_pen任务
+# 终端9: GPU3训练单通道变体 - 两个任务
 export CUDA_VISIBLE_DEVICES=1
 export GPU_ID=1
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5001
-export TASKS="adroit_pen"
-export ABLATION_VARIANTS="AEDP3-Late,AEDP3-Early"
+export TASKS="adroit_pen adroit_door"
+export ABLATION_VARIANTS="AEDP3-C0,AEDP3-C1,AEDP3-C2"
 bash scripts/run_ablation_experiments.sh
 
-# 终端12: GPU2训练双通道变体 - adroit_door任务
+# 终端10: GPU0训练双通道变体 - adroit_pen任务
 export CUDA_VISIBLE_DEVICES=2
 export GPU_ID=2
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5002
-export TASKS="adroit_door"
+export TASKS="adroit_pen"
 export ABLATION_VARIANTS="AEDP3-C01,AEDP3-C02,AEDP3-C12"
 bash scripts/run_ablation_experiments.sh
 
-# 终端13: GPU3训练融合策略变体 - adroit_door任务
+# 终端11: GPU1训练融合策略变体 - adroit_pen任务
 export CUDA_VISIBLE_DEVICES=3
 export GPU_ID=3
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5003
+export TASKS="adroit_pen"
+export ABLATION_VARIANTS="AEDP3-Early,AEDP3-Late"
+bash scripts/run_ablation_experiments.sh
+
+# 终端12: GPU2训练双通道变体 - adroit_door任务
+export CUDA_VISIBLE_DEVICES=3
+export GPU_ID=3
+export SEED=0
+export CONFIG_NAME=dp3
+export GS2_PORT=5003
+export TASKS="adroit_door"
+export ABLATION_VARIANTS="AEDP3-C01,AEDP3-C02,AEDP3-C12"
+bash scripts/run_ablation_experiments.sh
+
+# 终端13: GPU3训练融合策略变体 - adroit_door任务
+export CUDA_VISIBLE_DEVICES=2
+export GPU_ID=2
+export SEED=0
+export CONFIG_NAME=dp3
+export GS2_PORT=5002
 export TASKS="adroit_door"
 export ABLATION_VARIANTS="AEDP3-Late,AEDP3-Early"
 bash scripts/run_ablation_experiments.sh

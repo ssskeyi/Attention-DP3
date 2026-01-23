@@ -353,16 +353,18 @@ class DP3Encoder(nn.Module):
                 effective_attn_channels = len(attn_channels) if attn_channels is not None else attn_3d_channels
                 total_channels = base_channels + effective_attn_channels
                 cprint(f"[DP3Encoder] Early fusion: base_channels={base_channels}, attn_channels={effective_attn_channels}, total={total_channels}", "yellow")
-            else:
-                total_channels = base_channels
-
-            # Create encoder with appropriate input channels
-            if use_pc_color:
+                # Early fusion always needs RGB encoder (supports 6 channels)
                 encoder_cfg['in_channels'] = total_channels
                 self.extractor = PointNetEncoderXYZRGB(**encoder_cfg)
             else:
-                encoder_cfg['in_channels'] = total_channels
-                self.extractor = PointNetEncoderXYZ(**encoder_cfg)
+                total_channels = base_channels
+                # Use appropriate encoder based on color usage
+                if use_pc_color:
+                    encoder_cfg['in_channels'] = total_channels
+                    self.extractor = PointNetEncoderXYZRGB(**encoder_cfg)
+                else:
+                    encoder_cfg['in_channels'] = total_channels
+                    self.extractor = PointNetEncoderXYZ(**encoder_cfg)
         else:
             raise NotImplementedError(f"pointnet_type: {pointnet_type}")
 

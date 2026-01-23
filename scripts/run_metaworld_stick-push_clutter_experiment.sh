@@ -42,7 +42,7 @@ run_aedp3_clutter() {
         exp_name=${exp_name} \
         logging.mode=online \
         logging.name=${run_name} \
-        logging.project=aedp3_metaworld_clutter_comparison_0118 \
+        logging.project=8blocks_clutter_metaworld_stick-push_seed0 \
         checkpoint.save_ckpt=true
 }
 
@@ -68,7 +68,7 @@ run_dp3_clutter() {
         exp_name=${exp_name} \
         logging.mode=online \
         logging.name=${run_name} \
-        logging.project=aedp3_metaworld_clutter_comparison_0118 \
+        logging.project=8blocks_clutter_metaworld_stick-push_seed0 \
         checkpoint.save_ckpt=true
 }
 
@@ -85,7 +85,7 @@ main() {
 
     # Run both experiments
     run_dp3_clutter
-    run_aedp3_clutter
+    # run_aedp3_clutter
 
     end_time=$(date +%s)
     log "Experiment completed! Total time: $((end_time - start_time)) seconds"
@@ -93,7 +93,7 @@ main() {
     log "Experiment results:"
     log "  - AEDP3 clutter: data/outputs/metaworld_stick-push_clutter-${CONFIG_NAME}-AEDP3_clutter_seed${SEED}"
     log "  - DP3 clutter: data/outputs/metaworld_stick-push_no_attn_clutter-${CONFIG_NAME}-DP3_clutter_seed${SEED}"
-    log "L5 metrics will be automatically calculated and recorded to wandb project: aedp3_metaworld_clutter_comparison_0118"
+    log "L5 metrics will be automatically calculated and recorded to wandb project: aedp3_metaworld_clutter_comparison_0119"
 }
 
 main "$@"
