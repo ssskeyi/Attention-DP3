@@ -6,6 +6,7 @@ import copy
 
 from typing import Optional, Dict, Tuple, Union, List, Type
 from termcolor import cprint
+from .multi_channel_attention_encoder import MultiChannelAttentionFieldEncoder
 
 
 def create_mlp(
@@ -307,11 +308,16 @@ class DP3Encoder(nn.Module):
                 # Determine effective attention channels after selection
                 effective_attn_channels = len(attn_channels) if attn_channels is not None else attn_3d_channels
             else:  # late fusion
-                # Create attention field encoder with channel selection
-                self.attn_3d_encoder = AttentionFieldEncoder(
+                # Create attention field encoder with independent per-channel encoders
+                # and cross-attention fusion. Preserve channel selection behavior.
+                self.attn_3d_encoder = MultiChannelAttentionFieldEncoder(
                     in_channels=attn_3d_channels,
                     n_points=attn_3d_n_points,
-                    out_dim=attn_3d_encoder_dim,
+                    per_channel_hidden_dims=(128, 256),
+                    per_channel_out_dim=64,
+                    d_model=attn_3d_encoder_dim,
+                    num_heads=4,
+                    num_fusion_tokens=1,
                     channel_selection=attn_channels,
                 )
                 self.n_output_channels += attn_3d_encoder_dim
@@ -427,8 +433,8 @@ class DP3Encoder(nn.Module):
             attn_3d = observations[self.attn_3d_key]
             # attn_3d should be (B, C, N)
             if len(attn_3d.shape) == 3:
-                attn_feat = self.attn_3d_encoder(attn_3d)  # (B, attn_3d_encoder_dim)
-                feat_list.append(attn_feat)
+                attn_fused, _ = self.attn_3d_encoder(attn_3d)  # (B, attn_3d_encoder_dim)
+                feat_list.append(attn_fused)
             else:
                 raise ValueError(f"attn_3d shape should be (B, C, N), got {attn_3d.shape}")
 

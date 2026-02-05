@@ -272,7 +272,7 @@ for variant_info in "${ABLATION_VARIANTS[@]}"; do
                         exp_name=${exp_name} \
                         logging.mode=${wandb_mode} \
                         logging.name=${run_name} \
-                        logging.project=aedp3_ablation_experiments_0127 \
+                        logging.project=aedp3_ablation_experiments_0205 \
                         checkpoint.save_ckpt=${save_ckpt} \
                         task.dataset.zarr_path=${dataset_path} \
                         ${gs2_args} \
