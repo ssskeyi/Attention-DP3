@@ -1,7 +1,6 @@
 <mujoco>
     <include file="../scene/basic_scene.xml"/>
     <include file="../objects/assets/window_dependencies.xml"/>
-    <include file="../objects/assets/block_dependencies.xml"/>
     <include file="../objects/assets/xyz_base_dependencies.xml"/>
 
     <worldbody>
@@ -9,55 +8,6 @@
 
       <body name="window" pos="-0.1 0.785 0.202">
         <include file="../objects/assets/window_horiz.xml"/>
-      </body>
-
-      <!-- Distraction objects for clutter experiments -->
-      <body name="clutter_0" pos="-0.3 0.6 0.02" childclass="block_base">
-        <freejoint/>
-        <geom material="block_wood" pos="0 0 .02" mesh="block"/>
-        <geom name="clutter_0_geom" class="block_col" pos="0 0 .02" size="0.02 0.02 0.02" type="box" mass=".1"/>
-      </body>
-
-      <body name="clutter_1" pos="0.1 0.6 0.02" childclass="block_base">
-        <freejoint/>
-        <geom material="block_wood" pos="0 0 .02" mesh="block"/>
-        <geom name="clutter_1_geom" class="block_col" pos="0 0 .02" size="0.02 0.02 0.02" type="box" mass=".1"/>
-      </body>
-
-      <body name="clutter_2" pos="-0.35 0.75 0.02" childclass="block_base">
-        <freejoint/>
-        <geom material="block_wood" pos="0 0 .02" mesh="block"/>
-        <geom name="clutter_2_geom" class="block_col" pos="0 0 .02" size="0.02 0.02 0.02" type="box" mass=".1"/>
-      </body>
-
-      <body name="clutter_3" pos="0.15 0.75 0.02" childclass="block_base">
-        <freejoint/>
-        <geom material="block_wood" pos="0 0 .02" mesh="block"/>
-        <geom name="clutter_3_geom" class="block_col" pos="0 0 .02" size="0.02 0.02 0.02" type="box" mass=".1"/>
-      </body>
-
-      <body name="clutter_4" pos="-0.25 0.85 0.02" childclass="block_base">
-        <freejoint/>
-        <geom material="block_wood" pos="0 0 .02" mesh="block"/>
-        <geom name="clutter_4_geom" class="block_col" pos="0 0 .02" size="0.02 0.02 0.02" type="box" mass=".1"/>
-      </body>
-
-      <body name="clutter_5" pos="0.05 0.85 0.02" childclass="block_base">
-        <freejoint/>
-        <geom material="block_wood" pos="0 0 .02" mesh="block"/>
-        <geom name="clutter_5_geom" class="block_col" pos="0 0 .02" size="0.02 0.02 0.02" type="box" mass=".1"/>
-      </body>
-
-      <body name="clutter_6" pos="-0.2 0.55 0.02" childclass="block_base">
-        <freejoint/>
-        <geom material="block_wood" pos="0 0 .02" mesh="block"/>
-        <geom name="clutter_6_geom" class="block_col" pos="0 0 .02" size="0.02 0.02 0.02" type="box" mass=".1"/>
-      </body>
-
-      <body name="clutter_7" pos="0.0 0.55 0.02" childclass="block_base">
-        <freejoint/>
-        <geom material="block_wood" pos="0 0 .02" mesh="block"/>
-        <geom name="clutter_7_geom" class="block_col" pos="0 0 .02" size="0.02 0.02 0.02" type="box" mass=".1"/>
       </body>
 
       <site name="goal" pos="0. 0.7 0.27" size="0.02"

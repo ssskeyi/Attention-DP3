@@ -180,21 +180,72 @@ for variant_info in "${ABLATION_VARIANTS[@]}"; do
       "adroit_door")
         base_task="adroit_door"
         ;;
+      # Metaworld 任务（兼容多种写法）
+      "pick-place"|"Pick-Place"|"pick_place"|"Pick_Place")
+        base_task="pick_place"
+        ;;
+      "Hammer"|"hammer")
+        base_task="hammer"
+        ;;
+      "stick-pull"|"Stick-Pull"|"stick_pull"|"Stick_Pull")
+        base_task="stick_pull"
+        ;;
+      "pick-place-wall"|"Pick-Place-Wall"|"pick_place_wall"|"Pick_Place_Wall")
+        base_task="pick_place_wall"
+        ;;
+      "push-wall"|"Push-Wall"|"push_wall"|"Push_Wall")
+        base_task="push_wall"
+        ;;
       *)
         log "警告: 未知任务 $task，跳过"
         continue
         ;;
     esac
 
+    # 根据 base_task 生成 Hydra 中的 task 名称前缀（用于配置名）
+    case "${base_task}" in
+      "pick_place")
+        hydra_task_prefix="metaworld_pick-place"
+        dataset_prefix="metaworld_pick-place"
+        ;;
+      "hammer")
+        hydra_task_prefix="metaworld_hammer"
+        dataset_prefix="metaworld_hammer"
+        ;;
+      "stick_pull")
+        hydra_task_prefix="metaworld_stick-pull"
+        dataset_prefix="metaworld_stick-pull"
+        ;;
+      "pick_place_wall")
+        hydra_task_prefix="metaworld_pick-place-wall"
+        dataset_prefix="metaworld_pick-place-wall"
+        ;;
+      "push_wall")
+        hydra_task_prefix="metaworld_push-wall"
+        dataset_prefix="metaworld_push-wall"
+        ;;
+      *)
+        hydra_task_prefix="${base_task}"
+        dataset_prefix="${base_task}"
+        ;;
+    esac
+
     # 根据变体设置任务名称和数据集配置
     if [[ "$channels" == "no_attn" ]]; then
-      task_config="${task}_no_attn"
-      dataset_path="data/${base_task}_expert_no_attn.zarr"
-      # DP3任务不需要GS2 API URL
+      # Hydra 配置名使用 <hydra_task_prefix>_no_attn
+      task_config="${hydra_task_prefix}_no_attn"
+      dataset_path="data/${dataset_prefix}_expert.zarr"
+      # 无需 GS2 API
       gs2_args=""
     else
-      task_config="${task}"
-      dataset_path="data/${base_task}_expert_gs2_attn3d.zarr"
+      # 使用带注意力的 Hydra 配置名（例如 metaworld_stick-pull）
+      task_config="${hydra_task_prefix}"
+      # 优先使用 Metaworld 命名的 attn3d 文件
+      if [[ -f "${ROOT}/3D-Diffusion-Policy/data/${dataset_prefix}_expert_attn3d.zarr" ]] || [[ -n "${dataset_prefix}" ]]; then
+        dataset_path="data/${dataset_prefix}_expert_attn3d.zarr"
+      else
+        dataset_path="data/${base_task}_expert_gs2_attn3d.zarr"
+      fi
       # GS2任务需要设置GS2 API URL环境变量
       export GS2_API_URL="http://127.0.0.1:${GS2_PORT}"
       gs2_args="+gs2_api_url=${GS2_API_URL}"
@@ -221,7 +272,7 @@ for variant_info in "${ABLATION_VARIANTS[@]}"; do
                         exp_name=${exp_name} \
                         logging.mode=${wandb_mode} \
                         logging.name=${run_name} \
-                        logging.project=aedp3_ablation_experiments \
+                        logging.project=aedp3_ablation_experiments_0127 \
                         checkpoint.save_ckpt=${save_ckpt} \
                         task.dataset.zarr_path=${dataset_path} \
                         ${gs2_args} \
