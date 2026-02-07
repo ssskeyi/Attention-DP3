@@ -57,6 +57,7 @@ personal_TASK.md
 easytrain.sh
 nohup.out
 output/
+export_code/
 
 # ===== Grounded-SAM-2 ignore rules =====
 # Copied from Grounded-SAM-2/.gitignore
