@@ -23,7 +23,7 @@ log() { echo -e "[hammer_clutter] $*"; }
 run_aedp3_clutter() {
     log "=== 运行 AEDP3 clutter实验 ==="
     task_name="adroit_hammer_clutter"
-    addition_info="aedp3"
+    addition_info="8nails-aedp3"
     exp_name="${task_name}-${CONFIG_NAME}-${addition_info}"
     run_name="${SEED}-${addition_info}"
     run_dir="data/outputs/${exp_name}_seed${SEED}"
@@ -41,7 +41,7 @@ run_aedp3_clutter() {
         exp_name=${exp_name} \
         logging.mode=online \
         logging.name=${run_name} \
-        logging.project=8nails_seed0_aedp3_clutter_comparison_0117 \
+        logging.project=clutter_adroit_hammer_0209 \
         checkpoint.save_ckpt=true
 }
 
@@ -49,7 +49,7 @@ run_aedp3_clutter() {
 run_dp3_clutter() {
     log "=== 运行 DP3 clutter实验 ==="
     task_name="adroit_hammer_no_attn_clutter"
-    addition_info="dp3"
+    addition_info="6nails-dp3"
     exp_name="${task_name}-${CONFIG_NAME}-${addition_info}"
     run_name="${SEED}-${addition_info}"
     run_dir="data/outputs/${exp_name}_seed${SEED}"
@@ -67,7 +67,7 @@ run_dp3_clutter() {
         exp_name=${exp_name} \
         logging.mode=online \
         logging.name=${run_name} \
-        logging.project=8nails_seed0_aedp3_clutter_comparison_0117 \
+        logging.project=clutter_adroit_hammer_0209 \
         checkpoint.save_ckpt=true
 }
 
@@ -83,7 +83,7 @@ main() {
     start_time=$(date +%s)
 
     # 运行两个实验
-    run_dp3_clutter
+    # run_dp3_clutter
     run_aedp3_clutter
 
     end_time=$(date +%s)

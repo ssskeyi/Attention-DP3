@@ -87,11 +87,11 @@ total_start=$(date +%s)
 for task in "${TASKS_ARRAY[@]}"; do
   task_start=$(date +%s)
   if [[ "${task}" == *_no_attn ]]; then
-    addition_info="0112mw"
+    addition_info="0207mw"
     # DP3任务不需要GS2 API URL
     task_extra_args="${EXTRA_ARGS}"
   else
-    addition_info="0112mwaedp3"
+    addition_info="0207mwaedp3"
     # GS2任务需要设置GS2 API URL环境变量
     export GS2_API_URL="http://127.0.0.1:${GS2_PORT}"
     task_extra_args="${EXTRA_ARGS}"
@@ -113,7 +113,7 @@ for task in "${TASKS_ARRAY[@]}"; do
                             exp_name=${exp_name} \
                             logging.mode=${wandb_mode} \
                             logging.name=${run_name} \
-                            logging.project=aedp3_wetaworld_cmp_0112 \
+                            logging.project=aedp3_wetaworld_cmp_0213 \
                             checkpoint.save_ckpt=${save_ckpt} \
                             ${task_extra_args}
   task_end=$(date +%s)

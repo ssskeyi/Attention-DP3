@@ -333,6 +333,21 @@ class TrainDP3Workspace:
             self.epoch += 1
             del step_log
 
+        # === final evaluation / rollout after training completes ===
+        policy = self.model
+        if cfg.training.use_ema:
+            policy = self.ema_model
+        policy.eval()
+
+        if RUN_ROLLOUT and env_runner is not None:
+            try:
+                final_runner_log = env_runner.run(policy)
+                # log final runner metrics if any
+                if isinstance(final_runner_log, dict) and len(final_runner_log) > 0:
+                    wandb_run.log(final_runner_log, step=self.global_step)
+            except Exception as e:
+                cprint(f"[TrainDP3Workspace] final rollout failed: {e}", "red")
+
     def eval(self):
         # load the latest checkpoint
         

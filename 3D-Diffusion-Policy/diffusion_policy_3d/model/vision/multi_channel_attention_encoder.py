@@ -43,7 +43,7 @@ class PerChannelPointEncoder(nn.Module):
 class MultiChannelAttentionFieldEncoder(nn.Module):
     """
     Multi-channel attention field encoder with independent per-channel encoders
-    and cross-attention fusion.
+    and simple concat+MLP fusion.
 
     Input:
         x: (B, C, N) attention field
@@ -81,19 +81,12 @@ class MultiChannelAttentionFieldEncoder(nn.Module):
              for _ in range(self.effective_in_channels)]
         )
 
-        # Project per-channel outputs to common d_model
-        self.channel_proj = nn.Linear(per_channel_out_dim, d_model)
-
-        # Learnable fusion query tokens
-        self.fusion_query = nn.Parameter(torch.randn(num_fusion_tokens, d_model))
-
-        # Cross-attention: fusion_query attends to channel tokens (keys/values)
-        self.cross_attn = nn.MultiheadAttention(embed_dim=d_model, num_heads=num_heads, batch_first=True)
-
-        # Optional final projector
-        self.final_proj = nn.Sequential(
-            nn.Linear(d_model * num_fusion_tokens, d_model) if num_fusion_tokens > 1 else nn.Identity(),
-            nn.LayerNorm(d_model) if num_fusion_tokens > 1 else nn.Identity(),
+        # Fusion: concatenate all channel features then apply MLP to reduce dimension to d_model
+        fusion_in_dim = self.effective_in_channels * per_channel_out_dim
+        self.fusion_mlp = nn.Sequential(
+            nn.Linear(fusion_in_dim, d_model),
+            nn.LayerNorm(d_model),
+            nn.ReLU(),
         )
 
     def forward(self, x):
@@ -117,21 +110,11 @@ class MultiChannelAttentionFieldEncoder(nn.Module):
         # (B, C, per_channel_out_dim)
         channel_feats = torch.stack(channel_feats, dim=1)
 
-        # Project to common d_model
-        channel_tokens = self.channel_proj(channel_feats)  # (B, C, d_model)
+        # Concatenate channel features: (B, C * per_channel_out_dim)
+        fused_input = channel_feats.view(B, -1)
 
-        # Prepare fusion query batch
-        query = self.fusion_query.unsqueeze(0).expand(B, -1, -1)  # (B, num_fusion_tokens, d_model)
-
-        # Cross-attention: query attends to channel tokens
-        attn_out, attn_weights = self.cross_attn(query, channel_tokens, channel_tokens)  # (B, num_fusion_tokens, d_model)
-
-        if self.num_fusion_tokens == 1:
-            fused = attn_out.squeeze(1)  # (B, d_model)
-        else:
-            # Optionally flatten fusion tokens into single vector
-            fused = attn_out.view(B, -1)  # (B, num_fusion_tokens * d_model)
-            fused = self.final_proj(fused)  # (B, d_model)
+        # Apply MLP to get fused representation (B, d_model)
+        fused = self.fusion_mlp(fused_input)
 
         return fused, channel_feats
 

@@ -24,7 +24,7 @@ log() { echo -e "[stick-push_clutter] $*"; }
 run_aedp3_clutter() {
     log "=== Running AEDP3 clutter experiment ==="
     task_name="metaworld_stick-push_clutter"
-    addition_info="AEDP3_clutter"
+    addition_info="aedp3-3blocks"
     exp_name="${task_name}-${CONFIG_NAME}-${addition_info}"
     run_name="${SEED}-${addition_info}"
     run_dir="data/outputs/${exp_name}_seed${SEED}"
@@ -42,7 +42,7 @@ run_aedp3_clutter() {
         exp_name=${exp_name} \
         logging.mode=online \
         logging.name=${run_name} \
-        logging.project=8blocks_clutter_metaworld_stick-push_seed0 \
+        logging.project=clutter_metaworld_stick-push_0212 \
         checkpoint.save_ckpt=true
 }
 
@@ -50,7 +50,7 @@ run_aedp3_clutter() {
 run_dp3_clutter() {
     log "=== Running DP3 clutter experiment ==="
     task_name="metaworld_stick-push_no_attn_clutter"
-    addition_info="DP3_clutter"
+    addition_info="dp3_1blocks"
     exp_name="${task_name}-${CONFIG_NAME}-${addition_info}"
     run_name="${SEED}-${addition_info}"
     run_dir="data/outputs/${exp_name}_seed${SEED}"
@@ -68,7 +68,7 @@ run_dp3_clutter() {
         exp_name=${exp_name} \
         logging.mode=online \
         logging.name=${run_name} \
-        logging.project=8blocks_clutter_metaworld_stick-push_seed0 \
+        logging.project=clutter_metaworld_stick-push_0212 \
         checkpoint.save_ckpt=true
 }
 
@@ -84,8 +84,8 @@ main() {
     start_time=$(date +%s)
 
     # Run both experiments
-    run_dp3_clutter
-    # run_aedp3_clutter
+    # run_dp3_clutter
+    run_aedp3_clutter
 
     end_time=$(date +%s)
     log "Experiment completed! Total time: $((end_time - start_time)) seconds"

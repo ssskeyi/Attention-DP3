@@ -36,7 +36,7 @@ CUDA_VISIBLE_DEVICES=6 python gs2_api_server.py --device cuda:6 --port 5006
 cd Grounded-SAM-2
 CUDA_VISIBLE_DEVICES=7 python gs2_api_server.py --device cuda:7 --port 5007
 
-# 终端10: GPU0训练GS2任务 (pick-place-wall)
+# 终端10: GPU0训练GS2任务 (pick-place-wall) ok
 export CUDA_VISIBLE_DEVICES=0
 export GPU_ID=0
 export SEED=0
@@ -54,7 +54,7 @@ export GS2_PORT=5001
 export TASKS="metaworld_push"
 bash scripts/train_all_metaworld.sh
 
-# 终端12: GPU2训练GS2任务 (push-back)
+# 终端12: GPU2训练GS2任务 (push-back) ok
 export CUDA_VISIBLE_DEVICES=2
 export GPU_ID=2
 export SEED=0
@@ -90,7 +90,7 @@ export GS2_PORT=5005
 export TASKS="metaworld_assembly"
 bash scripts/train_all_metaworld.sh
 
-# 终端16: GPU6训练GS2任务 (push-wall)
+# 终端16: GPU6训练GS2任务 (push-wall) ok
 export CUDA_VISIBLE_DEVICES=6
 export GPU_ID=6
 export SEED=0
