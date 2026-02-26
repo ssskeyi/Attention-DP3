@@ -24,7 +24,7 @@ EXTRA_ARGS="${EXTRA_ARGS:-}"
 
 # 默认任务列表
 DEFAULT_TASKS=(
-  # 之前运行过的任务，已注释掉
+  # 之前运行过的任务（已有结果），全部注释掉
   # metaworld_pick-place_no_attn
   # metaworld_sweep_no_attn
   # metaworld_shelf-place_no_attn
@@ -44,21 +44,41 @@ DEFAULT_TASKS=(
   # metaworld_disassemble
   # metaworld_reach
 
-  # 新增任务
-  metaworld_pick-place-wall_no_attn
-  metaworld_push_no_attn
-  metaworld_pick-out-of-hole_no_attn
-  metaworld_hand-insert_no_attn
-  metaworld_assembly_no_attn
-  metaworld_push-wall_no_attn
-  metaworld_peg-insert-side_no_attn
-  metaworld_pick-place-wall
-  metaworld_push
-  metaworld_pick-out-of-hole
-  metaworld_hand-insert
-  metaworld_assembly
-  metaworld_push-wall
-  metaworld_peg-insert-side
+  # 上一批新增任务（也已有结果），一并注释
+  # metaworld_pick-place-wall_no_attn
+  # metaworld_push_no_attn
+  # metaworld_pick-out-of-hole_no_attn
+  # metaworld_hand-insert_no_attn
+  # metaworld_assembly_no_attn
+  # metaworld_push-wall_no_attn
+  # metaworld_peg-insert-side_no_attn
+  # metaworld_pick-place-wall
+  # metaworld_push
+  # metaworld_pick-out-of-hole
+  # metaworld_hand-insert
+  # metaworld_assembly
+  # metaworld_push-wall
+  # metaworld_peg-insert-side
+
+  # 新一批要跑的任务（默认同时包含 no_attn / attn）
+  metaworld_dial-turn_no_attn
+  metaworld_door-lock_no_attn
+  metaworld_handle-pull_no_attn
+  metaworld_handle-pull-side_no_attn
+  metaworld_lever-pull_no_attn
+  metaworld_reach-wall_no_attn
+  metaworld_peg-unplug-side_no_attn
+  metaworld_coffee-pull_no_attn
+  metaworld_coffee-push_no_attn
+  metaworld_dial-turn
+  metaworld_door-lock
+  metaworld_handle-pull
+  metaworld_handle-pull-side
+  metaworld_lever-pull
+  metaworld_reach-wall
+  metaworld_peg-unplug-side
+  metaworld_coffee-pull
+  metaworld_coffee-push
 )
 
 # 如果设置了TASKS环境变量，使用它；否则使用默认任务

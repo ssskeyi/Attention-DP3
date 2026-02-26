@@ -132,7 +132,17 @@ class MetaworldRunner(BaseRunner):
             'hand-insert': 'hand. rectangular prism.',
             'assembly': 'assembly. peg. ring.',
             'push-wall': 'a little rectangular prism. wall.',
-            'peg-insert-side': 'peg. hole.'
+            'peg-insert-side': 'peg. hole.',
+            # 新一批任务的 prompts（与 make_metaworld_datasets.sh 保持语义一致）
+            'dial-turn': 'dial. knob.',
+            'door-lock': 'door. lock.',
+            'handle-pull': 'handle.',
+            'handle-pull-side': 'handle.',
+            'lever-pull': 'lever.',
+            'reach-wall': 'red robotic arm.',
+            'peg-unplug-side': 'peg. hole.',
+            'coffee-pull': 'coffee.',
+            'coffee-push': 'coffee.'
         }
         return prompts.get(task_name, 'object.')  # Default fallback
 
