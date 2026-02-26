@@ -32,7 +32,7 @@ export GPU_ID=0
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5000
-export TASKS="push-wall stick-pull"
+export TASKS="pick-place-wall pick-place"
 export ABLATION_VARIANTS="AEDP3-Full"
 bash scripts/run_ablation_experiments.sh
 
@@ -42,7 +42,7 @@ export GPU_ID=1
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5001
-export TASKS="push-wall"
+export TASKS="pick-place-wall"
 export ABLATION_VARIANTS="AEDP3-C0,AEDP3-C1,AEDP3-C2"
 bash scripts/run_ablation_experiments.sh
 
@@ -51,7 +51,7 @@ export GPU_ID=2
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5002
-export TASKS="stick-pull"
+export TASKS="pick-place"
 export ABLATION_VARIANTS="AEDP3-C0,AEDP3-C1,AEDP3-C2"
 bash scripts/run_ablation_experiments.sh
 
@@ -61,7 +61,7 @@ export GPU_ID=3
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5003
-export TASKS="push-wall"
+export TASKS="pick-place-wall"
 export ABLATION_VARIANTS="AEDP3-C01,AEDP3-C02,AEDP3-C12"
 bash scripts/run_ablation_experiments.sh
 
@@ -70,7 +70,7 @@ export GPU_ID=4
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5004
-export TASKS="stick-pull"
+export TASKS="pick-place"
 export ABLATION_VARIANTS="AEDP3-C01,AEDP3-C02,AEDP3-C12"
 bash scripts/run_ablation_experiments.sh
 
@@ -80,7 +80,7 @@ export GPU_ID=5
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5005
-export TASKS="push-wall"
+export TASKS="pick-place-wall"
 export ABLATION_VARIANTS="AEDP3-Early,AEDP3-Late"
 bash scripts/run_ablation_experiments.sh
 
@@ -89,6 +89,6 @@ export GPU_ID=6
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5006
-export TASKS="stick-pull"
+export TASKS="pick-place"
 export ABLATION_VARIANTS="AEDP3-Early,AEDP3-Late"
 bash scripts/run_ablation_experiments.sh

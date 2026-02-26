@@ -24,7 +24,7 @@ log() { echo -e "[stick-push_clutter] $*"; }
 run_aedp3_clutter() {
     log "=== Running AEDP3 clutter experiment ==="
     task_name="metaworld_stick-push_clutter"
-    addition_info="aedp3-3blocks"
+    addition_info="aedp3-8blocks"
     exp_name="${task_name}-${CONFIG_NAME}-${addition_info}"
     run_name="${SEED}-${addition_info}"
     run_dir="data/outputs/${exp_name}_seed${SEED}"
@@ -50,7 +50,7 @@ run_aedp3_clutter() {
 run_dp3_clutter() {
     log "=== Running DP3 clutter experiment ==="
     task_name="metaworld_stick-push_no_attn_clutter"
-    addition_info="dp3_1blocks"
+    addition_info="dp3_8blocks"
     exp_name="${task_name}-${CONFIG_NAME}-${addition_info}"
     run_name="${SEED}-${addition_info}"
     run_dir="data/outputs/${exp_name}_seed${SEED}"
