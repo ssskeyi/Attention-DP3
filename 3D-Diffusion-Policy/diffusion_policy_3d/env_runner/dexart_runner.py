@@ -84,6 +84,10 @@ class DexArtRunner(BaseRunner):
         os.makedirs(temp_dir, exist_ok=True)
         self.temp_dir = temp_dir
 
+        # Buffer to store historical attn_3d (for efficient GS2 usage)
+        # Each step generates 1 attn, and we take the last n_obs_steps for the window
+        self.attn_history = collections.deque(maxlen=n_obs_steps)
+
     def _get_text_prompt_for_task(self, task_name):
         """Get text prompt for Grounded-SAM-2 based on task name."""
         prompts = {
@@ -270,6 +274,9 @@ class DexArtRunner(BaseRunner):
         ##############################
         # train env loop
         for episode_id in tqdm.tqdm(range(self.episode_train), desc=f"DexArt {self.task_name} Train Env",leave=False, mininterval=self.tqdm_interval_sec):
+            # Reset attn history for each episode
+            self.attn_history.clear()
+            
             # start rollout
             obs = env_train.reset()
 
@@ -393,19 +400,31 @@ class DexArtRunner(BaseRunner):
 
                             # Generate attn_3d for timesteps if possible
                             if rgb_img is not None and point_cloud_full is not None:
-                                # print(f"[DEBUG] About to call GS2 with rgb_img shape: {rgb_img.shape}, dtype: {rgb_img.dtype}, id: {id(rgb_img)}")
-                                T = point_cloud_full.shape[0]
-                                attn_3d_list = []
-                                for t in range(T):
-                                    pc_t = point_cloud_full[t]
-                                    if pc_t.shape[-1] < 8:
-                                        attn_3d_t = np.zeros((3, 1024), dtype=np.float32)
-                                    else:
-                                        # print(f"[DEBUG] Calling GS2 inference with rgb_img shape: {rgb_img.shape}, id: {id(rgb_img)}")
-                                        assert rgb_img.shape == (84, 84, 3), f"rgb_img has wrong shape: {rgb_img.shape}"
-                                        attn_3d_t = self._generate_attn_3d_inference(rgb_img, pc_t, img_res=rgb_img.shape[:2])
-                                    attn_3d_list.append(attn_3d_t)
-                                attn_3d = np.stack(attn_3d_list, axis=0)  # (T, C, N)
+                                # Get the current frame's point cloud (latest timestep)
+                                pc_current = point_cloud_full[-1]  # (N, 8) - most recent
+
+                                if pc_current.shape[-1] < 8:
+                                    # No UV coordinates, generate zero attention
+                                    attn_current = np.zeros((3, 1024), dtype=np.float32)
+                                else:
+                                    # Generate attn for current frame only (1 GS2 call per step)
+                                    assert rgb_img.shape == (84, 84, 3), f"rgb_img has wrong shape: {rgb_img.shape}"
+                                    attn_current = self._generate_attn_3d_inference(
+                                        rgb_img, pc_current, img_res=rgb_img.shape[:2]
+                                    )
+
+                                # Store in history buffer
+                                self.attn_history.append(attn_current)
+
+                                # Build window from history (pad with zeros if not enough history)
+                                attn_list = list(self.attn_history)
+                                n_missing = self.n_obs_steps - len(attn_list)
+                                if n_missing > 0:
+                                    # Pad with zeros at the beginning
+                                    padding = [np.zeros((3, 1024), dtype=np.float32) for _ in range(n_missing)]
+                                    attn_list = padding + attn_list
+
+                                attn_3d = np.stack(attn_list, axis=0)  # (T, C, N)
                             else:
                                 raise RuntimeError(
                                     "Cannot generate attn_3d at runtime: RGB image or point cloud with UV coordinates not available. "

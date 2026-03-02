@@ -1,6 +1,7 @@
 import wandb
 import numpy as np
 import torch
+import collections
 import tqdm
 import os
 import subprocess
@@ -95,6 +96,10 @@ class AdroitRunner(BaseRunner):
         self.n_action_steps = n_action_steps
         self.max_steps = max_steps
         self.tqdm_interval_sec = tqdm_interval_sec
+
+        # Buffer to store historical attn_3d (for efficient GS2 usage)
+        # Each step generates 1 attn, and we take the last n_obs_steps for the window
+        self.attn_history = collections.deque(maxlen=n_obs_steps)
 
         self.logger_util_test = logger_util.LargestKRecorder(K=3)
         self.logger_util_test10 = logger_util.LargestKRecorder(K=5)
@@ -609,6 +614,9 @@ class AdroitRunner(BaseRunner):
 
         for episode_idx in tqdm.tqdm(range(self.eval_episodes), desc=f"Eval in Adroit {self.task_name} Pointcloud Env",
                                      leave=False, mininterval=self.tqdm_interval_sec):
+            
+            # Reset attn history for each episode
+            self.attn_history.clear()
                 
             # start rollout
             obs = env.reset()
@@ -723,36 +731,61 @@ class AdroitRunner(BaseRunner):
                             if rgb_img is not None and point_cloud_full is not None:
                                 # Check if we can use environment segmentation
                                 if self.seg_type == 'env' and seg_data is not None:
-                                    # Use environment segmentation data - process all timesteps at once
-                                    # Using environment segmentation (processed)
-                                    attn_3d = self._build_attn_from_env_seg(
-                                        point_cloud_full, seg_data, n_points=512, n_channels=3
+                                    # Use environment segmentation data - process current frame only
+                                    # Get the current frame's data
+                                    pc_current = point_cloud_full[-1]  # (N, 8) - most recent
+                                    seg_current = seg_data[-1]  # (H, W, C) - most recent
+
+                                    # Build attention for current frame
+                                    attn_current = self._build_attn_from_env_seg(
+                                        np.expand_dims(pc_current, 0), 
+                                        np.expand_dims(seg_current, 0), 
+                                        n_points=512, n_channels=3
                                     )
+                                    attn_current = attn_current.squeeze(0)  # (C, N)
+
+                                    # Store in history buffer
+                                    self.attn_history.append(attn_current)
+
+                                    # Build window from history (pad with zeros if not enough history)
+                                    attn_list = list(self.attn_history)
+                                    n_missing = self.n_obs_steps - len(attn_list)
+                                    if n_missing > 0:
+                                        padding = [np.zeros((3, 512), dtype=np.float32) for _ in range(n_missing)]
+                                        attn_list = padding + attn_list
+
+                                    attn_3d = np.stack(attn_list, axis=0)  # (T, C, N)
 
                                     # Check if attention is all zeros (keep warning)
                                     if attn_3d.sum() == 0:
                                         cprint(f"[warn] Attention mask is all zeros! seg_data shape: {seg_data.shape}, pc shape: {point_cloud_full.shape}", "red")
                                 else:
-                                    # Generate attn_3d for each timestep using Grounded-SAM-2
-                                    T = point_cloud_full.shape[0]
-                                    attn_3d_list = []
-                                    for t in range(T):
-                                        pc_t = point_cloud_full[t]  # (N, 8) or (N, 6)
+                                    # Generate attn_3d for current frame using Grounded-SAM-2 (1 call per step)
+                                    # Get the current frame's point cloud (latest timestep)
+                                    pc_current = point_cloud_full[-1]  # (N, 8) - most recent
 
-                                        # If point cloud doesn't have UV, we can't do precise mapping
-                                        if pc_t.shape[-1] < 8:
-                                            cprint(f"[warn] Point cloud at timestep {t} doesn't have UV coordinates (shape: {pc_t.shape}), using fallback", "yellow")
-                                            # Fallback: generate zero attention
-                                            attn_3d_t = np.zeros((3, 512), dtype=np.float32)
-                                        else:
-                                            # Use Grounded-SAM-2 or fallback
-                                            attn_3d_t = self._generate_attn_3d_inference(
-                                                rgb_img, pc_t, img_res=rgb_img.shape[:2], seg_data=None
-                                            )
+                                    # If point cloud doesn't have UV, we can't do precise mapping
+                                    if pc_current.shape[-1] < 8:
+                                        cprint(f"[warn] Point cloud at current frame doesn't have UV coordinates (shape: {pc_current.shape}), using fallback", "yellow")
+                                        # Fallback: generate zero attention
+                                        attn_current = np.zeros((3, 512), dtype=np.float32)
+                                    else:
+                                        # Use Grounded-SAM-2 (1 call per step instead of T calls)
+                                        attn_current = self._generate_attn_3d_inference(
+                                            rgb_img, pc_current, img_res=rgb_img.shape[:2], seg_data=None
+                                        )
 
-                                        attn_3d_list.append(attn_3d_t)
+                                    # Store in history buffer
+                                    self.attn_history.append(attn_current)
 
-                                    attn_3d = np.stack(attn_3d_list, axis=0)  # (T, C, N)
+                                    # Build window from history (pad with zeros if not enough history)
+                                    attn_list = list(self.attn_history)
+                                    n_missing = self.n_obs_steps - len(attn_list)
+                                    if n_missing > 0:
+                                        padding = [np.zeros((3, 512), dtype=np.float32) for _ in range(n_missing)]
+                                        attn_list = padding + attn_list
+
+                                    attn_3d = np.stack(attn_list, axis=0)  # (T, C, N)
                             else:
                                 # Fallback: generate zero attention
                                 cprint(f"[warn] Cannot generate attn_3d (rgb_img={rgb_img is not None}, pc_full={point_cloud_full is not None}), using zero attention", "yellow")
