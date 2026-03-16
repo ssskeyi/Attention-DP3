@@ -308,7 +308,12 @@ def main():
         "--gdino_cfg",
         default="grounding_dino/groundingdino/config/GroundingDINO_SwinB_cfg.py",
     )
+    # parser.add_argument(
+    #     "--gdino_cfg",
+    #     default="grounding_dino/groundingdino/config/GroundingDINO_SwinT_OGC.py",
+    # )
     parser.add_argument("--gdino_ckpt", default="gdino_checkpoints/groundingdino_swinb_cogcoor.pth")
+    # parser.add_argument("--gdino_ckpt", default="gdino_checkpoints/groundingdino_swint_ogc.pth")
     parser.add_argument("--device", default="cuda", 
                         help="Device to use (e.g., 'cuda', 'cuda:0', 'cuda:1', 'cpu'). Default: 'cuda'")
     parser.add_argument("--seed", type=int, default=0, help="Server default random seed for deterministic inference (default: 0)")

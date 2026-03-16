@@ -119,7 +119,7 @@ for task in "${TASKS[@]}"; do
                             exp_name=${exp_name} \
                             logging.mode=${wandb_mode} \
                             logging.name=${run_name} \
-                            logging.project=aedp3_adroit_cmd \
+                            logging.project=aedp3_adroit_0310 \
                             checkpoint.save_ckpt=${save_ckpt} \
                             ${dataset_args} \
                             ${EXTRA_ARGS}

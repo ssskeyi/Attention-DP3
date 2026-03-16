@@ -36,138 +36,138 @@ CUDA_VISIBLE_DEVICES=6 python gs2_api_server.py --device cuda:6 --port 5006
 cd Grounded-SAM-2
 CUDA_VISIBLE_DEVICES=7 python gs2_api_server.py --device cuda:7 --port 5007
 
-# 终端10: GPU0训练GS2任务 (pick-place-wall) ok
+# 终端10: GPU0训练GS2任务 (dial-turn) ok
 export CUDA_VISIBLE_DEVICES=0
 export GPU_ID=0
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5000
-export TASKS="metaworld_pick-place-wall"
+export TASKS="metaworld_dial-turn"
 bash scripts/train_all_metaworld.sh
 
-# 终端11: GPU1训练GS2任务 (push)
+# 终端11: GPU1训练GS2任务 (door-lock)
 export CUDA_VISIBLE_DEVICES=1
 export GPU_ID=1
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5001
-export TASKS="metaworld_push"
+export TASKS="metaworld_door-lock"
 bash scripts/train_all_metaworld.sh
 
-# 终端12: GPU2训练GS2任务 (push-back) ok
+# 终端12: GPU2训练GS2任务 (handle-pull) ok
 export CUDA_VISIBLE_DEVICES=2
 export GPU_ID=2
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5002
-export TASKS="metaworld_push-back"
+export TASKS="metaworld_handle-pull"
 bash scripts/train_all_metaworld.sh
 
-# 终端13: GPU3训练GS2任务 (pick-out-of-hole)
+# 终端13: GPU3训练GS2任务 (handle-pull-side)
 export CUDA_VISIBLE_DEVICES=3
 export GPU_ID=3
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5003
-export TASKS="metaworld_pick-out-of-hole"
+export TASKS="metaworld_handle-pull-side"
 bash scripts/train_all_metaworld.sh
 
-# 终端14: GPU4训练GS2任务 (hand-insert)
+# 终端14: GPU4训练GS2任务 (lever-pull)
 export CUDA_VISIBLE_DEVICES=4
 export GPU_ID=4
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5004
-export TASKS="metaworld_hand-insert"
+export TASKS="metaworld_lever-pull"
 bash scripts/train_all_metaworld.sh
 
-# 终端15: GPU5训练GS2任务 (assembly)
+# 终端15: GPU5训练GS2任务 (reach-wall)
 export CUDA_VISIBLE_DEVICES=5
 export GPU_ID=5
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5005
-export TASKS="metaworld_assembly"
+export TASKS="metaworld_reach-wall"
 bash scripts/train_all_metaworld.sh
 
-# 终端16: GPU6训练GS2任务 (push-wall) ok
+# 终端16: GPU6训练GS2任务 (peg-unplug-side) ok
 export CUDA_VISIBLE_DEVICES=6
 export GPU_ID=6
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5006
-export TASKS="metaworld_push-wall"
+export TASKS="metaworld_peg-unplug-side"
 bash scripts/train_all_metaworld.sh
 
-# 终端17: GPU7训练GS2任务 (peg-insert-side)
+# 终端17: GPU7训练GS2任务 (coffee-pull)
 export CUDA_VISIBLE_DEVICES=7
 export GPU_ID=7
 export SEED=0
 export CONFIG_NAME=dp3
 export GS2_PORT=5007
-export TASKS="metaworld_peg-insert-side"
+export TASKS="metaworld_coffee-pull"
 bash scripts/train_all_metaworld.sh
 
-# 终端18: GPU0训练DP3任务 (pick-place-wall_no_attn)
+# 终端18: GPU0训练DP3任务 (dial-turn_no_attn)
 export CUDA_VISIBLE_DEVICES=0
 export GPU_ID=0
 export SEED=0
 export CONFIG_NAME=dp3
-export TASKS="metaworld_pick-place-wall_no_attn"
+export TASKS="metaworld_dial-turn_no_attn"
 bash scripts/train_all_metaworld.sh
 
-# 终端19: GPU1训练DP3任务 (push_no_attn)
+# 终端19: GPU1训练DP3任务 (door-lock_no_attn)
 export CUDA_VISIBLE_DEVICES=1
 export GPU_ID=1
 export SEED=0
 export CONFIG_NAME=dp3
-export TASKS="metaworld_push_no_attn"
+export TASKS="metaworld_door-lock_no_attn"
 bash scripts/train_all_metaworld.sh
 
-# 终端20: GPU2训练DP3任务 (push-back_no_attn)
+# 终端20: GPU2训练DP3任务 (handle-pull_no_attn)
 export CUDA_VISIBLE_DEVICES=2
 export GPU_ID=2
 export SEED=0
 export CONFIG_NAME=dp3
-export TASKS="metaworld_push-back_no_attn"
+export TASKS="metaworld_handle-pull_no_attn"
 bash scripts/train_all_metaworld.sh
 
-# 终端21: GPU3训练DP3任务 (pick-out-of-hole_no_attn)
+# 终端21: GPU3训练DP3任务 (handle-pull-side_no_attn)
 export CUDA_VISIBLE_DEVICES=3
 export GPU_ID=3
 export SEED=0
 export CONFIG_NAME=dp3
-export TASKS="metaworld_pick-out-of-hole_no_attn"
+export TASKS="metaworld_handle-pull-side_no_attn"
 bash scripts/train_all_metaworld.sh
 
-# 终端22: GPU4训练DP3任务 (hand-insert_no_attn)
+# 终端22: GPU4训练DP3任务 (lever-pull_no_attn)
 export CUDA_VISIBLE_DEVICES=4
 export GPU_ID=4
 export SEED=0
 export CONFIG_NAME=dp3
-export TASKS="metaworld_hand-insert_no_attn"
+export TASKS="metaworld_lever-pull_no_attn"
 bash scripts/train_all_metaworld.sh
 
-# 终端23: GPU5训练DP3任务 (assembly_no_attn)
+# 终端23: GPU5训练DP3任务 (reach-wall_no_attn)
 export CUDA_VISIBLE_DEVICES=5
 export GPU_ID=5
 export SEED=0
 export CONFIG_NAME=dp3
-export TASKS="metaworld_assembly_no_attn"
+export TASKS="metaworld_reach-wall_no_attn"
 bash scripts/train_all_metaworld.sh
 
-# 终端24: GPU6训练DP3任务 (push-wall_no_attn)
+# 终端24: GPU6训练DP3任务 (peg-unplug-side_no_attn)
 export CUDA_VISIBLE_DEVICES=6
 export GPU_ID=6
 export SEED=0
 export CONFIG_NAME=dp3
-export TASKS="metaworld_push-wall_no_attn"
+export TASKS="metaworld_peg-unplug-side_no_attn"
 bash scripts/train_all_metaworld.sh
 
-# 终端25: GPU7训练DP3任务 (peg-insert-side_no_attn)
+# 终端25: GPU7训练DP3任务 (coffee-pull_no_attn)
 export CUDA_VISIBLE_DEVICES=7
 export GPU_ID=7
 export SEED=0
 export CONFIG_NAME=dp3
-export TASKS="metaworld_peg-insert-side_no_attn"
+export TASKS="metaworld_coffee-pull_no_attn"
 bash scripts/train_all_metaworld.sh

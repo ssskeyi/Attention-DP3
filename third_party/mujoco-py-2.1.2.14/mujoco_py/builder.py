@@ -76,7 +76,7 @@ The easy solution is to `import mujoco_py` _before_ `import glfw`.
             _ensure_set_env_var("LD_LIBRARY_PATH", get_nvidia_lib_dir())
             Builder = LinuxGPUExtensionBuilder
         else:
-            Builder = LinuxGPUExtensionBuilder
+            Builder = LinuxCPUExtensionBuilder
     elif sys.platform.startswith("win"):
         var = "PATH"
         if var not in os.environ or lib_path not in os.environ[var].split(";"):

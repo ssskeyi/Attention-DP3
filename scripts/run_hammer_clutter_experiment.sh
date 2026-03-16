@@ -83,8 +83,8 @@ main() {
     start_time=$(date +%s)
 
     # 运行两个实验
-    # run_dp3_clutter
-    run_aedp3_clutter
+    run_dp3_clutter
+    # run_aedp3_clutter
 
     end_time=$(date +%s)
     log "实验完成！总耗时 $((end_time - start_time)) 秒"

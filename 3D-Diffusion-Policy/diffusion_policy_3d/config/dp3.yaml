@@ -106,8 +106,8 @@ training:
   resume: True
   lr_scheduler: cosine
   lr_warmup_steps: 500
-  # num_epochs: 3000
-  num_epochs: 1000  # metaworld
+  num_epochs: 3000
+  # num_epochs: 1000  # metaworld
   gradient_accumulate_every: 1
   use_ema: True
   rollout_every: 200

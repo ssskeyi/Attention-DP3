@@ -51,7 +51,16 @@ class MetaWorldEnv(gym.Env):
         self.env.sim.model.vis.map.znear = 0.1
         self.env.sim.model.vis.map.zfar = 1.5
         
-        self.device_id = int(device.split(":")[-1])
+        # Support CPU fallback by mapping non-CUDA devices to default renderer id.
+        if isinstance(device, str) and device.startswith("cuda:"):
+            self.device_id = int(device.split(":")[-1])
+        elif isinstance(device, str) and device == "cpu":
+            self.device_id = -1
+        else:
+            try:
+                self.device_id = int(device)
+            except Exception:
+                self.device_id = -1
         
         self.image_size = 128
         

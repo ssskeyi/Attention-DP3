@@ -34,6 +34,9 @@ vis_res/
 vis_res_metaworld/
 vis_res_adroit/
 vis_res_dexart/
+.pydeps/
+.conda_envs/
+Others/
 
 _C.cpython-38-x86_64-linux-gnu.so
 _C.cpython-39-x86_64-linux-gnu.so

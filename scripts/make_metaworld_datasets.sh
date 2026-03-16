@@ -22,7 +22,8 @@ N_POINTS="${N_POINTS:-512}"
 # TASKS="${TASKS:-hammer pick-place window-open window-close sweep sweep-into stick-push stick-pull soccer shelf-place box-close bin-picking disassemble reach pick-place-wall push push-back pick-out-of-hole hand-insert assembly push-wall peg-insert-side}"
 
 # 新一批待生成数据的任务（如需只跑子集，可通过环境变量 TASKS 覆盖）
-TASKS="${TASKS:-dial-turn door-lock handle-pull handle-pull-side lever-pull reach-wall peg-unplug-side coffee-pull coffee-push}"
+# TASKS="${TASKS:-dial-turn door-lock handle-pull handle-pull-side lever-pull reach-wall peg-unplug-side coffee-pull coffee-push}"
+TASKS="${TASKS:-basketball}"
 GS2_DIR="${GS2_DIR:-${ROOT}/Grounded-SAM-2}"
 GS2_CONDA_ENV="${GS2_CONDA_ENV:-aedp3_vis}"
 
@@ -121,9 +122,9 @@ main() {
   log "MAX_EP=${MAX_EP}, N_POINTS=${N_POINTS}"
   for task in ${TASKS}; do
     gen_demo "${task}"
-    export_frames "${task}"
-    gs2_for_task "${task}"
-    convert_attn_zarr "${task}"
+    # export_frames "${task}"
+    # gs2_for_task "${task}"
+    # convert_attn_zarr "${task}"
   done
   log "全部完成"
 }
