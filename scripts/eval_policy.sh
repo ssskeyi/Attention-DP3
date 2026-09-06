@@ -3,6 +3,9 @@
 # bash scripts/eval_policy.sh dp3 adroit_hammer 0322 0 0 [EXTRA_ARGS]
 
 DEBUG=False
+# Evaluation does not write checkpoints and can run without a W&B account.
+wandb_mode=offline
+save_ckpt=false
 
 alg_name=${1}
 task_name=${2}
@@ -32,5 +35,3 @@ python eval.py --config-name=${config_name}.yaml \
                             ${extra_args}
 
 
-
-                                
